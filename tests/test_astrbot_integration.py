@@ -42,7 +42,7 @@ def _dispatch_to_sessions(event) -> bool:
 
 
 def test_mirage_stepwise_sessions_are_isolated_per_user(tmp_path, make_app):
-    app = make_app({"mirage": {"timeout": 5}})
+    app = make_app({"image": {"mirage_timeout": 5}})
     imgs = {}
     for name, size, color in (("a_front", (30, 20), (255, 255, 255)), ("a_back", (30, 20), (0, 0, 0)), ("b_front", (12, 12), (128, 128, 128))):
         path = tmp_path / f"{name}.png"
@@ -82,7 +82,7 @@ def test_mirage_stepwise_sessions_are_isolated_per_user(tmp_path, make_app):
 
 
 def test_mirage_session_timeout(tmp_path, make_app):
-    app = make_app({"mirage": {"timeout": 5}})
+    app = make_app({"image": {"mirage_timeout": 5}})
     app.settings.mirage.timeout = 1  # 配置下限是 5 秒，测试里直接改短
     event = FakeEvent([plain("/幻影坦克")], message_str="幻影坦克", sender_id="9", group_id="1", platform="aiocqhttp")
     run(asyncio.wait_for(app.handle_command(event, "幻影坦克"), 5))

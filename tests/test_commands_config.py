@@ -93,25 +93,28 @@ def test_media_commands_have_examples():
 def test_schema_matches_settings_dataclasses():
     schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
     names = setting_names()
+    assert list(schema) == ["general", "image", "video", "audio"]  # 配置界面只有 4 块
+    assert [schema[g]["description"] for g in schema] == ["通用设置", "图片", "视频", "音频"]
     assert set(schema) == set(names)
     defaults = Settings()
-    for group, fields in names.items():
+    for group, mapping in names.items():
         items = schema[group]["items"]
-        assert set(items) == fields, group
+        assert set(items) == set(mapping), group
         for key, item in items.items():
             assert "description" in item and "type" in item
-            expected = getattr(getattr(defaults, group), key)
+            target, field_name = mapping[key]
+            expected = getattr(getattr(defaults, target), field_name)
             assert item["default"] == expected, f"{group}.{key}"
             if "options" in item:
                 assert item["default"] in item["options"]
+    assert "NapCat" not in json.dumps(schema, ensure_ascii=False)
 
 
 def test_settings_clamp_and_fallback():
     s = Settings.load({
         "general": {"heavy_concurrency": 99, "task_timeout": "abc", "match_mode": "true"},
         "video": {"default_crf": 5, "preset": "bogus", "ffmpeg_path": ""},
-        "qq": {"blocked_groups": "123, 456，123", "convert_group_mode": "x"},
-        "mirage": {"w": 7},
+        "image": {"qq_blocked_groups": "123, 456，123", "qq_convert_group_mode": "x", "mirage_w": 7, "prism_rate": 99},
     })
     assert s.general.heavy_concurrency == 8
     assert s.general.task_timeout == 180
@@ -122,6 +125,7 @@ def test_settings_clamp_and_fallback():
     assert s.qq.blocked_groups == ["123", "456"]
     assert s.qq.convert_group_mode == "private"
     assert s.mirage.w == 1.0
+    assert s.prism.rate == 8
     assert Settings.load(None).image.enable is True
 
 

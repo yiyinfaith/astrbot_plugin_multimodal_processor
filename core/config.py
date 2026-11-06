@@ -79,6 +79,9 @@ class GeneralSettings:
     extra_local_roots: list[str] = field(default_factory=list)
     temp_expire_minutes: int = 60
     debug: bool = False
+    text_enable: bool = True
+    text_max_chars: int = 20000
+    text_file_threshold: int = 3000
 
     @classmethod
     def load(cls, raw: dict) -> "GeneralSettings":
@@ -95,6 +98,9 @@ class GeneralSettings:
             extra_local_roots=_str_list(raw.get("extra_local_roots")),
             temp_expire_minutes=_int(raw.get("temp_expire_minutes"), 60, 5, 7 * 24 * 60),
             debug=_bool(raw.get("debug"), False),
+            text_enable=_bool(raw.get("text_enable"), True),
+            text_max_chars=_int(raw.get("text_max_chars"), 20000, 100, 1_000_000),
+            text_file_threshold=_int(raw.get("text_file_threshold"), 3000, 200, 100_000),
         )
 
 
@@ -323,22 +329,31 @@ class Settings:
         return cls(
             general=GeneralSettings.load(group("general")),
             image=ImageSettings.load(group("image")),
-            qq=QQSettings.load(group("qq")),
-            mirage=MirageSettings.load(group("mirage")),
-            prism=PrismSettings.load(group("prism")),
+            qq=QQSettings.load(_prefixed(group("image"), "qq_")),
+            mirage=MirageSettings.load(_prefixed(group("image"), "mirage_")),
+            prism=PrismSettings.load(_prefixed(group("image"), "prism_")),
             video=VideoSettings.load(group("video")),
             audio=AudioSettings.load(group("audio")),
         )
 
 
-def setting_names() -> dict[str, set[str]]:
-    """返回每个分组的字段名，供测试核对 _conf_schema.json。"""
+# 配置界面只有 4 个分组：QQ、幻影坦克、光棱坦克的设置放在「图片」分组里，键名带前缀
+EMBEDDED_IN_IMAGE = {"qq_": "qq", "mirage_": "mirage", "prism_": "prism"}
+
+
+def _prefixed(raw: dict, prefix: str) -> dict:
+    return {key[len(prefix):]: value for key, value in raw.items() if key.startswith(prefix)}
+
+
+def setting_names() -> dict[str, dict[str, tuple[str, str]]]:
+    """配置界面每个分组的键 -> (设置对象, 字段名)，供测试核对 _conf_schema.json。"""
+    image = {f.name: ("image", f.name) for f in fields(ImageSettings)}
+    for prefix, target in EMBEDDED_IN_IMAGE.items():
+        cls = {"qq": QQSettings, "mirage": MirageSettings, "prism": PrismSettings}[target]
+        image.update({prefix + f.name: (target, f.name) for f in fields(cls)})
     return {
-        "general": {f.name for f in fields(GeneralSettings)},
-        "image": {f.name for f in fields(ImageSettings)},
-        "qq": {f.name for f in fields(QQSettings)},
-        "mirage": {f.name for f in fields(MirageSettings)},
-        "prism": {f.name for f in fields(PrismSettings)},
-        "video": {f.name for f in fields(VideoSettings)},
-        "audio": {f.name for f in fields(AudioSettings)},
+        "general": {f.name: ("general", f.name) for f in fields(GeneralSettings)},
+        "image": image,
+        "video": {f.name: ("video", f.name) for f in fields(VideoSettings)},
+        "audio": {f.name: ("audio", f.name) for f in fields(AudioSettings)},
     }

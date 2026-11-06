@@ -1,4 +1,4 @@
-"""QQ（OneBot v11 / NapCat 等）专属能力。
+"""QQ（OneBot v11）专属能力。
 
 只有 aiocqhttp 平台会调用这里的函数；其他平台在入口处就会收到明确提示。
 QQ 官方表情（商城表情 / mface）在 AstrBot 的消息解析里会被丢弃，所以这里直接读取
@@ -35,7 +35,7 @@ def is_onebot(event: Any) -> bool:
 
 def require_onebot(event: Any, feature: str) -> None:
     if not is_onebot(event):
-        raise UnsupportedPlatform(f"{feature}是 QQ 专属功能，仅支持 OneBot v11（NapCat 等）协议端，当前平台不支持。")
+        raise UnsupportedPlatform(f"{feature}是 QQ 专属功能，仅支持 OneBot v11 协议端，当前平台不支持。")
 
 
 async def call(event: Any, action: str, **params: Any) -> Any:

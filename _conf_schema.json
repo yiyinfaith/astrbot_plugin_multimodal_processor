@@ -70,17 +70,34 @@
         "description": "调试日志",
         "type": "bool",
         "default": false
+      },
+      "text_enable": {
+        "description": "文本：启用文本处理指令",
+        "type": "bool",
+        "default": true
+      },
+      "text_max_chars": {
+        "description": "文本：最多处理字数",
+        "type": "int",
+        "default": 20000
+      },
+      "text_file_threshold": {
+        "description": "文本：结果超过多少字改为文件发送",
+        "type": "int",
+        "default": 3000,
+        "hint": "平台不支持文件时会截断后以文字发送。"
       }
     }
   },
   "image": {
-    "description": "图片 / GIF",
+    "description": "图片",
     "type": "object",
     "items": {
       "enable": {
         "description": "启用图片与 GIF 功能",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "只控制图片变换、格式转换与动图工具；QQ 图片保存、幻影坦克、光棱坦克有各自的开关。"
       },
       "max_mb": {
         "description": "图片大小上限（MB）",
@@ -154,30 +171,24 @@
         "description": "多图合成最多图片数",
         "type": "int",
         "default": 30
-      }
-    }
-  },
-  "qq": {
-    "description": "QQ 图片保存（仅 OneBot v11 / NapCat）",
-    "type": "object",
-    "items": {
-      "enable_convert": {
-        "description": "启用 /转换（保存 QQ 图片为文件）",
+      },
+      "qq_enable_convert": {
+        "description": "QQ（仅 OneBot v11）：启用 /转换（保存 QQ 图片为文件）",
         "type": "bool",
         "default": true
       },
-      "enable_rename": {
-        "description": "启用 /外显取名（修改图片外显文字）",
+      "qq_enable_rename": {
+        "description": "QQ（仅 OneBot v11）：启用 /外显取名（修改图片外显文字）",
         "type": "bool",
         "default": true
       },
-      "enable_mface": {
-        "description": "允许提取 QQ 官方表情（商城表情）",
+      "qq_enable_mface": {
+        "description": "QQ（仅 OneBot v11）：允许提取 QQ 官方表情（商城表情）",
         "type": "bool",
         "default": true
       },
-      "convert_group_mode": {
-        "description": "群聊中 /转换 的发送方式",
+      "qq_convert_group_mode": {
+        "description": "QQ（仅 OneBot v11）：群聊中 /转换 的发送方式",
         "type": "string",
         "default": "private",
         "options": [
@@ -192,116 +203,104 @@
         ],
         "hint": "在群里发送文件会上传到群文件，默认私聊发送避免占用群文件。非好友时会尝试群临时会话。"
       },
-      "blocked_groups": {
-        "description": "禁止使用 /转换 的群号",
+      "qq_blocked_groups": {
+        "description": "QQ（仅 OneBot v11）：禁止使用 /转换 的群号",
         "type": "list",
         "default": [],
         "hint": "也可以由管理员在群里发送 /转换禁用、/转换启用 管理，结果会写回这里。"
-      }
-    }
-  },
-  "mirage": {
-    "description": "幻影坦克",
-    "type": "object",
-    "items": {
-      "enable": {
-        "description": "启用幻影坦克",
+      },
+      "mirage_enable": {
+        "description": "幻影坦克：启用",
         "type": "bool",
         "default": true
       },
-      "timeout": {
-        "description": "等待发图超时（秒）",
+      "mirage_timeout": {
+        "description": "幻影坦克：等待发图超时（秒）",
         "type": "int",
         "default": 60
       },
-      "max_mb": {
-        "description": "单张图片大小上限（MB）",
+      "mirage_max_mb": {
+        "description": "幻影坦克：单张图片大小上限（MB）",
         "type": "int",
         "default": 10
       },
-      "max_side": {
-        "description": "输出最长边（像素）",
+      "mirage_max_side": {
+        "description": "幻影坦克：输出最长边（像素）",
         "type": "int",
         "default": 2048,
         "hint": "表图更大时会等比缩小；里图会按表图尺寸居中裁剪对齐。"
       },
-      "gray_front_ratio": {
-        "description": "黑白模式：表图明暗范围",
+      "mirage_gray_front_ratio": {
+        "description": "幻影坦克：黑白模式表图明暗范围",
         "type": "float",
         "default": 0.5,
         "hint": "表图被压缩到亮区的比例（0.1～1）。越大表图对比度越高，里图越容易透出。"
       },
-      "gray_back_ratio": {
-        "description": "黑白模式：里图明暗范围",
+      "mirage_gray_back_ratio": {
+        "description": "幻影坦克：黑白模式里图明暗范围",
         "type": "float",
         "default": 0.5,
         "hint": "里图被压缩到暗区的比例（0.1～1）。越大里图越亮越清楚，表图越容易发灰。"
       },
-      "a": {
-        "description": "彩色模式：里图亮度系数",
+      "mirage_a": {
+        "description": "幻影坦克：彩色模式里图亮度系数",
         "type": "float",
         "default": 0.5,
         "hint": "里图亮度的乘法缩放，值越大里图越亮。典型范围 0.3～1.5。"
       },
-      "b": {
-        "description": "彩色模式：里图亮度偏移",
+      "mirage_b": {
+        "description": "幻影坦克：彩色模式里图亮度偏移",
         "type": "float",
         "default": 20.0,
         "hint": "里图亮度的整体偏移，增大会整体提亮里图并降低透明度。典型范围 5～40。"
       },
-      "w": {
-        "description": "彩色模式：里图颜色权重",
+      "mirage_w": {
+        "description": "幻影坦克：彩色模式里图颜色权重",
         "type": "float",
         "default": 0.1,
         "hint": "0 表示完全使用表图颜色，1 表示完全使用里图颜色。范围 0～1。"
-      }
-    }
-  },
-  "prism": {
-    "description": "光棱坦克",
-    "type": "object",
-    "items": {
-      "enable": {
-        "description": "启用光棱坦克（制作与显形）",
+      },
+      "prism_enable": {
+        "description": "光棱坦克：启用（制作与显形）",
         "type": "bool",
         "default": true
       },
-      "timeout": {
-        "description": "等待发图超时（秒）",
+      "prism_timeout": {
+        "description": "光棱坦克：等待发图超时（秒）",
         "type": "int",
         "default": 60
       },
-      "max_mb": {
-        "description": "单张图片大小上限（MB）",
+      "prism_max_mb": {
+        "description": "光棱坦克：单张图片大小上限（MB）",
         "type": "int",
         "default": 10
       },
-      "max_side": {
-        "description": "输出最长边（像素）",
+      "prism_max_side": {
+        "description": "光棱坦克：输出最长边（像素）",
         "type": "int",
         "default": 1200,
         "hint": "以里图尺寸为准等比缩小；表图按里图尺寸居中裁剪对齐。"
       },
-      "colored": {
-        "description": "表图保留颜色",
+      "prism_colored": {
+        "description": "光棱坦克：表图保留颜色",
         "type": "bool",
         "default": true,
         "hint": "关闭后表图转为黑白。指令里写「彩色」「黑白」可临时指定。"
       },
-      "inner_limit": {
-        "description": "里图色阶端点",
+      "prism_inner_limit": {
+        "description": "光棱坦克：里图色阶端点",
         "type": "int",
         "default": 32,
         "hint": "里图被压到 0～此值的暗区。越大显形越清楚，但平时越容易看出痕迹。必须小于表图色阶端点。"
       },
-      "cover_limit": {
-        "description": "表图色阶端点",
+      "prism_cover_limit": {
+        "description": "光棱坦克：表图色阶端点",
         "type": "int",
         "default": 64,
         "hint": "表图被压到 此值～255 的亮区。越小表图越接近原图，但与里图的区分度越低。"
       },
-      "rate": {
-        "description": "隐藏率",
+      "prism_rate": {
+        "description": "光棱坦克：隐藏率",
         "type": "int",
         "default": 2,
         "hint": "每 N 个像素藏 1 个里图像素（2～8）。2 显形最清楚但表图偏暗，越大表图越自然、显形越模糊。"
@@ -309,13 +308,14 @@
     }
   },
   "video": {
-    "description": "视频（需要 FFmpeg）",
+    "description": "视频",
     "type": "object",
     "items": {
       "enable": {
         "description": "启用视频功能",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "视频和音频功能需要系统安装 FFmpeg 与 FFprobe。"
       },
       "ffmpeg_path": {
         "description": "FFmpeg 可执行文件",
@@ -413,7 +413,7 @@
     }
   },
   "audio": {
-    "description": "音频（需要 FFmpeg）",
+    "description": "音频",
     "type": "object",
     "items": {
       "enable": {

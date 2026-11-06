@@ -225,6 +225,10 @@ class MultimodalApp:
 
     def _check_enabled(self, category: str, handler: str) -> None:
         s = self.settings
+        if category == "text":
+            if not s.general.text_enable:
+                raise FeatureDisabled("文本功能已在配置中关闭")
+            return
         if category == "qq":
             if handler == "qq_convert" and not s.qq.enable_convert:
                 raise FeatureDisabled("QQ 图片保存（/转换）已在配置中关闭")
@@ -245,11 +249,11 @@ class MultimodalApp:
     def save_blocked_groups(self, groups: list[str]) -> None:
         self.settings.qq.blocked_groups = list(groups)
         try:
-            section = self.config.get("qq")
+            section = self.config.get("image")
             if not isinstance(section, dict):
                 section = {}
-                self.config["qq"] = section
-            section["blocked_groups"] = list(groups)
+                self.config["image"] = section
+            section["qq_blocked_groups"] = list(groups)
             saver = getattr(self.config, "save_config", None)
             if callable(saver):
                 saver()

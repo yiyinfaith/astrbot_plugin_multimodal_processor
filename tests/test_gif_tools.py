@@ -245,6 +245,6 @@ def test_new_commands_end_to_end(tmp_path, make_app):
     assert "至少需要 2 张" in app.sender.texts()[-1]
     run(app.handle_command(FakeEvent([plain("/精灵图转GIF"), image(sheet)], message_str="精灵图转GIF"), "精灵图转GIF"))
     assert "行列数" in app.sender.texts()[-1]
-    disabled = make_app({"prism": {"enable": False}})
+    disabled = make_app({"image": {"prism_enable": False}})
     run(disabled.handle_command(FakeEvent([plain("/光棱显形"), image(a)], message_str="光棱显形"), "光棱显形"))
     assert "光棱坦克功能已在配置中关闭" in disabled.sender.texts()[0]

@@ -218,6 +218,112 @@ class MultimodalProcessor(Star):
         """还原光棱坦克里隐藏的图片"""
         await self.app.handle_command(event, "光棱显形")
 
+    # ------------------------------------------------------------ 文本
+    @filter.command("去除MD格式")
+    async def cmd_text_strip_md(self, event: AstrMessageEvent):
+        """去掉 Markdown 标记，转成纯文本"""
+        await self.app.handle_command(event, "去除MD格式")
+
+    @filter.command("添加MD格式")
+    async def cmd_text_add_md(self, event: AstrMessageEvent):
+        """给普通文本加上标题、加粗、列表、链接等 Markdown 格式"""
+        await self.app.handle_command(event, "添加MD格式")
+
+    @filter.command("MD代码块")
+    async def cmd_text_md_code(self, event: AstrMessageEvent):
+        """包成 Markdown 代码块"""
+        await self.app.handle_command(event, "MD代码块")
+
+    @filter.command("MD引用")
+    async def cmd_text_md_quote(self, event: AstrMessageEvent):
+        """每行加上 > 变成引用"""
+        await self.app.handle_command(event, "MD引用")
+
+    @filter.command("MD列表")
+    async def cmd_text_md_list(self, event: AstrMessageEvent):
+        """每行变成列表项"""
+        await self.app.handle_command(event, "MD列表")
+
+    @filter.command("MD表格")
+    async def cmd_text_md_table(self, event: AstrMessageEvent):
+        """把 CSV / TSV / 空格分隔的文本转成 Markdown 表格（首行为表头）"""
+        await self.app.handle_command(event, "MD表格")
+
+    @filter.command("字数统计")
+    async def cmd_text_count(self, event: AstrMessageEvent):
+        """统计字符、汉字、单词、行数、段落"""
+        await self.app.handle_command(event, "字数统计")
+
+    @filter.command("全角转半角")
+    async def cmd_text_halfwidth(self, event: AstrMessageEvent):
+        """全角字母数字标点转半角"""
+        await self.app.handle_command(event, "全角转半角")
+
+    @filter.command("半角转全角")
+    async def cmd_text_fullwidth(self, event: AstrMessageEvent):
+        """半角字符转全角"""
+        await self.app.handle_command(event, "半角转全角")
+
+    @filter.command("转大写")
+    async def cmd_text_upper(self, event: AstrMessageEvent):
+        """英文转大写"""
+        await self.app.handle_command(event, "转大写")
+
+    @filter.command("转小写")
+    async def cmd_text_lower(self, event: AstrMessageEvent):
+        """英文转小写"""
+        await self.app.handle_command(event, "转小写")
+
+    @filter.command("清理空白")
+    async def cmd_text_clean(self, event: AstrMessageEvent):
+        """去掉行首行尾空格、合并多余空格和空行"""
+        await self.app.handle_command(event, "清理空白")
+
+    @filter.command("文本去重")
+    async def cmd_text_dedupe(self, event: AstrMessageEvent):
+        """删除重复的行（保留第一次出现）"""
+        await self.app.handle_command(event, "文本去重")
+
+    @filter.command("文本排序")
+    async def cmd_text_sort(self, event: AstrMessageEvent):
+        """按行排序（数字按大小）"""
+        await self.app.handle_command(event, "文本排序")
+
+    @filter.command("文本反转")
+    async def cmd_text_reverse(self, event: AstrMessageEvent):
+        """把文字倒过来"""
+        await self.app.handle_command(event, "文本反转")
+
+    @filter.command("Base64编码")
+    async def cmd_text_b64e(self, event: AstrMessageEvent):
+        """Base64 编码（UTF-8）"""
+        await self.app.handle_command(event, "Base64编码")
+
+    @filter.command("Base64解码")
+    async def cmd_text_b64d(self, event: AstrMessageEvent):
+        """Base64 解码"""
+        await self.app.handle_command(event, "Base64解码")
+
+    @filter.command("URL编码")
+    async def cmd_text_urle(self, event: AstrMessageEvent):
+        """URL 编码"""
+        await self.app.handle_command(event, "URL编码")
+
+    @filter.command("URL解码")
+    async def cmd_text_urld(self, event: AstrMessageEvent):
+        """URL 解码"""
+        await self.app.handle_command(event, "URL解码")
+
+    @filter.command("JSON格式化")
+    async def cmd_text_json(self, event: AstrMessageEvent):
+        """格式化 JSON（加「压缩」则压成一行）"""
+        await self.app.handle_command(event, "JSON格式化")
+
+    @filter.command("文本哈希")
+    async def cmd_text_hash(self, event: AstrMessageEvent):
+        """计算 MD5 / SHA1 / SHA256"""
+        await self.app.handle_command(event, "文本哈希")
+
     # ------------------------------------------------------------ 视频
     @filter.command("视频转GIF")
     async def cmd_video_to_gif(self, event: AstrMessageEvent):

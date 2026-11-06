@@ -57,6 +57,7 @@ CATEGORIES: dict[str, str] = {
     "qq": "QQ 图片保存",
     "mirage": "幻影坦克",
     "prism": "光棱坦克",
+    "text": "文本",
     "video": "视频（需要 FFmpeg）",
     "audio": "音频（需要 FFmpeg）",
     "help": "帮助",
@@ -133,12 +134,12 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         "转换", "qq_convert", "qq", "把 QQ 图片/GIF/官方表情重新发送为可下载文件", "",
         ("引用一张图片后发送 /转换",),
-        "保留原格式和动画。群聊发送方式由配置决定（默认私聊发送，避免占用群文件）。仅支持 QQ（OneBot v11 / NapCat）。",
+        "保留原格式和动画。群聊发送方式由配置决定（默认私聊发送，避免占用群文件）。仅支持 QQ（OneBot v11）。",
     ),
     CommandSpec(
         "外显取名", "qq_rename", "qq", "修改图片在 QQ 消息列表中的外显文字", "<文字>",
         ("引用图片后发送 /外显取名 好耶", "/外显取名 [doge]"),
-        "文字没有方括号时会自动加上，例如 好耶 → [好耶]。仅支持 QQ（OneBot v11 / NapCat）。",
+        "文字没有方括号时会自动加上，例如 好耶 → [好耶]。仅支持 QQ（OneBot v11）。",
     ),
     CommandSpec(
         "转换禁用", "qq_block", "qq", "（管理员）禁止某个群使用 /转换", "[群号]",
@@ -175,6 +176,28 @@ COMMANDS: tuple[CommandSpec, ...] = (
         "阈值优先读取本插件写入的参数，其次自动检测；图片被压缩过时可能需要手动指定。",
         aliases={"光棱坦克显形": ()},
     ),
+    # ---------------- 文本 ----------------
+    CommandSpec("去除MD格式", "text", "text", "去掉 Markdown 标记，转成纯文本", "[文本]", ("引用一条消息发送 /去除MD格式",), needs_media=False),
+    CommandSpec("添加MD格式", "text", "text", "给普通文本加上标题、加粗、列表、链接等 Markdown 格式", "[文本]", ("/添加MD格式 购物清单\n1. 牛奶\n2. 面包",), needs_media=False),
+    CommandSpec("MD代码块", "text", "text", "包成 Markdown 代码块", "[语言] 文本", ("/MD代码块 python\nprint(1)",), needs_media=False),
+    CommandSpec("MD引用", "text", "text", "每行加上 > 变成引用", "[文本]", ("/MD引用 名言一句",), needs_media=False),
+    CommandSpec("MD列表", "text", "text", "每行变成列表项", "[有序] 文本", ("/MD列表 有序\n第一\n第二",), needs_media=False),
+    CommandSpec("MD表格", "text", "text", "把 CSV / TSV / 空格分隔的文本转成 Markdown 表格（首行为表头）", "文本", ("/MD表格 姓名,年龄\n张三,18",), needs_media=False),
+    CommandSpec("字数统计", "text", "text", "统计字符、汉字、单词、行数、段落", "[文本]", ("引用一条消息发送 /字数统计",), needs_media=False),
+    CommandSpec("全角转半角", "text", "text", "全角字母数字标点转半角", "[文本]", ("/全角转半角 ＡＢＣ１２３",), needs_media=False),
+    CommandSpec("半角转全角", "text", "text", "半角字符转全角", "[文本]", ("/半角转全角 ABC123",), needs_media=False),
+    CommandSpec("转大写", "text", "text", "英文转大写", "[文本]", ("/转大写 hello",), needs_media=False),
+    CommandSpec("转小写", "text", "text", "英文转小写", "[文本]", ("/转小写 HELLO",), needs_media=False),
+    CommandSpec("清理空白", "text", "text", "去掉行首行尾空格、合并多余空格和空行", "[文本]", ("引用一条消息发送 /清理空白",), needs_media=False),
+    CommandSpec("文本去重", "text", "text", "删除重复的行（保留第一次出现）", "[文本]", ("引用一条消息发送 /文本去重",), needs_media=False),
+    CommandSpec("文本排序", "text", "text", "按行排序（数字按大小）", "[倒序] 文本", ("/文本排序 倒序\nb\na",), needs_media=False),
+    CommandSpec("文本反转", "text", "text", "把文字倒过来", "[文本]", ("/文本反转 上海自来水",), needs_media=False),
+    CommandSpec("Base64编码", "text", "text", "Base64 编码（UTF-8）", "[文本]", ("/Base64编码 你好",), needs_media=False),
+    CommandSpec("Base64解码", "text", "text", "Base64 解码", "[文本]", ("/Base64解码 5L2g5aW9",), needs_media=False),
+    CommandSpec("URL编码", "text", "text", "URL 编码", "[文本]", ("/URL编码 a b&c",), needs_media=False),
+    CommandSpec("URL解码", "text", "text", "URL 解码", "[文本]", ("/URL解码 a%20b",), needs_media=False),
+    CommandSpec("JSON格式化", "text", "text", "格式化 JSON（加「压缩」则压成一行）", "[压缩] 文本", ("/JSON格式化 {\"a\":1}",), needs_media=False),
+    CommandSpec("文本哈希", "text", "text", "计算 MD5 / SHA1 / SHA256", "[文本]", ("/文本哈希 hello",), needs_media=False),
     # ---------------- 视频 ----------------
     CommandSpec(
         "视频转GIF", "video_to_gif", "video", "视频片段转 GIF", "[帧率] [宽度] [时长] [开始时间]",
@@ -278,7 +301,7 @@ def help_overview(ffmpeg_ok: bool = True) -> str:
 
 _CATEGORY_KEYWORDS = {
     "图片": "image", "gif": "image", "动图": "image", "qq": "qq", "转换": "qq",
-    "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "视频": "video", "音频": "audio", "帮助": "help",
+    "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "文本": "text", "文字": "text", "md": "text", "视频": "video", "音频": "audio", "帮助": "help",
 }
 
 
@@ -296,4 +319,6 @@ def help_for(query: str) -> str | None:
             lines.append(f"/{spec.name}{(' ' + spec.usage) if spec.usage else ''}  —  {spec.summary}")
     if category in {"image", "mirage", "prism"}:
         lines.append(_SOURCE_HINT)
+    if category == "text":
+        lines.append("文本来源：指令后面的文字（可换行），没有时取引用消息的文字或引用 / 附带的文本文件（txt、md、json、csv 等）。")
     return "\n".join(lines)
