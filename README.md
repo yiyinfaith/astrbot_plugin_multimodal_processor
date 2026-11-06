@@ -253,11 +253,4 @@ QQ 里回复别人时客户端会自动插入 `@对方`，导致 AstrBot 不识�
 
 ## 致谢
 
-本插件借鉴了以下插件的思路，感谢原作者：
-
-- [astrbot_plugin_pic_toolbox](https://github.com/lirundong093-glitch/astrbot_plugin_pic_toolbox)
-- [astrbot_plugins_ConvetPicture](https://github.com/orchidsziyou/astrbot_plugins_ConvetPicture)
-- [astrbot_plugin_mirage_tank](https://github.com/Yuzi-Liang/astrbot_plugin_mirage_tank)
-- [astrbot_plugin_gifcaijian](https://github.com/shskjw/astrbot_plugin_gifcaijian)
-
-光棱坦克原理参考 [TankFactory](https://github.com/TankFactory)。
+本插件借鉴了多个插件的思路，感谢原作者，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
