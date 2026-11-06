@@ -179,7 +179,7 @@ class MultimodalProcessor(Star):
         """把引用的 QQ 图片/GIF/表情重新发送为可下载文件"""
         await self.app.handle_command(event, "转换")
 
-    @filter.command("rename", alias={"外显"})
+    @filter.command("rename", alias={"外显"}, priority=1)
     async def cmd_qq_rename(self, event: AstrMessageEvent):
         """修改图片在 QQ 中的外显文字，例：/rename 好耶"""
         await self.app.handle_command(event, "rename")

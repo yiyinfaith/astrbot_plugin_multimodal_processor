@@ -138,7 +138,8 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         "rename", "qq_rename", "qq", "修改图片在 QQ 消息列表中的外显文字", "<文字>",
         ("引用图片后发送 /rename 好耶", "/外显 [doge]"),
-        "文字没有方括号时会自动加上，例如 好耶 → [好耶]。仅支持 QQ（OneBot v11 / NapCat）。",
+        "文字没有方括号时会自动加上，例如 好耶 → [好耶]。仅支持 QQ（OneBot v11 / NapCat）。"
+        "为避免和「重命名会话」等同名指令冲突，/rename 只在引用或附带了图片时响应。",
         aliases={"外显": ()},
     ),
     CommandSpec(
