@@ -1,0 +1,7 @@
+name: multimodal_processor
+display_name: 多模态处理器
+desc: 本地图片、GIF、视频、音频与幻影坦克处理插件
+version: v1.0.0
+author: yiyinfaith
+repo: https://github.com/yiyinfaith/astrbot_plugin_multimodal_processor
+license: AGPL-3.0
