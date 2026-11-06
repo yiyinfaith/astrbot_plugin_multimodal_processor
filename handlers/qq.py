@@ -1,4 +1,4 @@
-"""QQ 图片保存（/转换）、修改外显（/rename）与群禁用管理。仅 OneBot v11（aiocqhttp）可用。"""
+"""QQ 图片保存（/转换）、修改外显（/取名）与群禁用管理。仅 OneBot v11（aiocqhttp）可用。"""
 
 from __future__ import annotations
 
@@ -77,11 +77,6 @@ async def convert(inv: Invocation) -> bool:
 
 
 async def rename(inv: Invocation) -> bool:
-    # /rename 与 AstrBot 常见的「重命名会话」指令同名：不是 QQ 平台或没有图片时不响应、不拦截，
-    # 交给其他同名指令处理（main.py 中本指令优先级更高，会先执行）。别名 /外显 不受影响。
-    if inv.parsed.used_name.lower() == "rename":
-        if not qq.is_onebot(inv.event) or not await qq.find_images(inv.event):
-            return False
     qq.require_onebot(inv.event, "修改图片外显")
     text = inv.parsed.rest.strip()
     if not text:

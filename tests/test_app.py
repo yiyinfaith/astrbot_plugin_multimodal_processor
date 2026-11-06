@@ -114,12 +114,10 @@ def test_feature_disabled_and_platform_checks(tmp_path, make_app):
     app = make_app()
     run(app.handle_command(FakeEvent([plain("/转换"), image(src)], message_str="转换", platform="telegram"), "转换"))
     assert "QQ 专属功能" in app.sender.texts()[0]
-    run(app.handle_command(FakeEvent([plain("/外显 好耶"), image(src)], message_str="外显 好耶", platform="webchat"), "rename"))
+    run(app.handle_command(FakeEvent([plain("/取名 好耶"), image(src)], message_str="取名 好耶", platform="webchat"), "取名"))
     assert "QQ 专属功能" in app.sender.texts()[1]
-    # /rename 在非 QQ 平台不响应也不拦截，交给同名的「重命名会话」指令
-    other = FakeEvent([plain("/rename 新会话名")], message_str="rename 新会话名", platform="webchat")
-    run(app.handle_command(other, "rename"))
-    assert len(app.sender.texts()) == 2 and not other.stopped
+    run(app.handle_command(FakeEvent([plain("/外显 好耶"), image(src)], message_str="外显 好耶", platform="telegram"), "取名"))
+    assert "QQ 专属功能" in app.sender.texts()[2]
 
 
 def test_admin_commands_and_config_writeback(make_app):

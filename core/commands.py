@@ -45,7 +45,7 @@ class ParsedCommand:
     spec: CommandSpec
     used_name: str
     args: tuple[str, ...]
-    rest: str  # 指令名之后的原始文本（保留空格），供 rename 等自由文本使用
+    rest: str  # 指令名之后的原始文本（保留空格），供 /取名 等自由文本使用
 
     @property
     def name(self) -> str:
@@ -136,10 +136,9 @@ COMMANDS: tuple[CommandSpec, ...] = (
         "保留原格式和动画。群聊发送方式由配置决定（默认私聊发送，避免占用群文件）。仅支持 QQ（OneBot v11 / NapCat）。",
     ),
     CommandSpec(
-        "rename", "qq_rename", "qq", "修改图片在 QQ 消息列表中的外显文字", "<文字>",
-        ("引用图片后发送 /rename 好耶", "/外显 [doge]"),
-        "文字没有方括号时会自动加上，例如 好耶 → [好耶]。仅支持 QQ（OneBot v11 / NapCat）。"
-        "为避免和「重命名会话」等同名指令冲突，/rename 只在引用或附带了图片时响应。",
+        "取名", "qq_rename", "qq", "修改图片在 QQ 消息列表中的外显文字", "<文字>",
+        ("引用图片后发送 /取名 好耶", "/外显 [doge]"),
+        "文字没有方括号时会自动加上，例如 好耶 → [好耶]。仅支持 QQ（OneBot v11 / NapCat）。",
         aliases={"外显": ()},
     ),
     CommandSpec(
