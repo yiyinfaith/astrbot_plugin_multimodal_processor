@@ -253,13 +253,11 @@ QQ 里回复别人时客户端会自动插入 `@对方`，导致 AstrBot 不识�
 
 ## 致谢
 
-本插件整合并重构了以下 4 个插件的功能，感谢原作者的创意与实现：
+本插件整合了以下插件的功能，感谢原作者：
 
-| 插件 | 作者 | 许可 | 整合的功能 |
-| :--- | :--- | :--- | :--- |
-| [astrbot_plugin_pic_toolbox](https://github.com/lirundong093-glitch/astrbot_plugin_pic_toolbox) | Lucy | AGPL-3.0 | 反色、旋转、翻转、对称、GIF 调速、@ 取头像、精准关键词匹配（表情包生成器及素材未包含） |
-| [astrbot_plugins_ConvetPicture](https://github.com/orchidsziyou/astrbot_plugins_ConvetPicture) | orchidsziyou | AGPL-3.0 | QQ 图片 / 表情转文件、修改外显、群黑名单 |
-| [astrbot_plugin_mirage_tank](https://github.com/Yuzi-Liang/astrbot_plugin_mirage_tank) | poisama | MIT | 黑白 / 彩色幻影坦克 |
-| [astrbot_plugin_gifcaijian](https://github.com/shskjw/astrbot_plugin_gifcaijian) | shskjw | AGPL-3.0 | 视频转动图参数、GIF 加减速、精灵图合成、多图合成、GIF 分解、网格切图、图片转线稿、表情包做旧 |
+- [astrbot_plugin_pic_toolbox](https://github.com/lirundong093-glitch/astrbot_plugin_pic_toolbox)
+- [astrbot_plugins_ConvetPicture](https://github.com/orchidsziyou/astrbot_plugins_ConvetPicture)
+- [astrbot_plugin_mirage_tank](https://github.com/Yuzi-Liang/astrbot_plugin_mirage_tank)
+- [astrbot_plugin_gifcaijian](https://github.com/shskjw/astrbot_plugin_gifcaijian)
 
-另外感谢 [TankFactory](https://github.com/TankFactory)（Uyanide）整理的光棱坦克原理与[光棱坦克工厂](https://prism.uyanide.com/)，以及 [astrbot-plugin-pic-mirror](https://github.com/FenChen0211/astrbot-plugin-pic-mirror) 提供的精准关键词匹配思路。
+光棱坦克原理参考 [TankFactory](https://github.com/TankFactory)。
