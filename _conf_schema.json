@@ -93,217 +93,247 @@
     "description": "图片处理",
     "type": "object",
     "items": {
-      "enable": {
-        "description": "启用图片与 GIF 功能",
-        "type": "bool",
-        "default": true,
-        "hint": "只控制图片变换、格式转换与动图工具；QQ 图片保存、幻影坦克、光棱坦克有各自的开关。"
+      "basic": {
+        "description": "基础",
+        "type": "object",
+        "items": {
+          "enable": {
+            "description": "启用图片与 GIF 功能",
+            "type": "bool",
+            "default": true,
+            "hint": "只控制图片变换、格式转换与动图工具；QQ 图片保存、幻影坦克、光棱坦克有各自的开关。"
+          },
+          "max_mb": {
+            "description": "图片大小上限（MB）",
+            "type": "int",
+            "default": 20
+          },
+          "max_megapixels": {
+            "description": "单帧分辨率上限（百万像素）",
+            "type": "int",
+            "default": 40,
+            "hint": "例如 40 约等于 8000x5000。超过会直接拒绝，防止解码炸弹。"
+          },
+          "max_frames": {
+            "description": "动图最大帧数",
+            "type": "int",
+            "default": 600
+          },
+          "memory_mb": {
+            "description": "动图展开内存上限（MB）",
+            "type": "int",
+            "default": 512,
+            "hint": "按 宽×高×4×帧数 估算，超过则拒绝处理。"
+          },
+          "default_quality": {
+            "description": "默认图片质量（1～100）",
+            "type": "int",
+            "default": 85,
+            "hint": "图片转换、图片压缩不填质量时使用。"
+          }
+        }
       },
-      "max_mb": {
-        "description": "图片大小上限（MB）",
-        "type": "int",
-        "default": 20
+      "gif": {
+        "description": "动图（GIF）",
+        "type": "object",
+        "items": {
+          "gif_max_fps": {
+            "description": "GIF 最高帧率",
+            "type": "int",
+            "default": 50,
+            "hint": "GIF 每帧至少 10ms，多数播放器对低于 20ms 的帧会降速，所以默认 50 FPS。"
+          },
+          "gif_speed_allow_frame_drop": {
+            "description": "GIF 调速允许丢帧",
+            "type": "bool",
+            "default": false,
+            "hint": "关闭时：倍率超过帧率上限会自动回退到能达到的最高倍率；开启时：合并连续的短帧（均匀丢帧）以达到目标倍率。"
+          },
+          "gif_max_side": {
+            "description": "生成 GIF 的最大宽度",
+            "type": "int",
+            "default": 1024,
+            "hint": "视频转 GIF 时宽度不会超过这个值。"
+          },
+          "make_format": {
+            "description": "合成动图的输出格式",
+            "type": "string",
+            "default": "gif",
+            "options": [
+              "gif",
+              "webp",
+              "apng"
+            ],
+            "labels": [
+              "GIF（兼容性最好）",
+              "动态 WebP（体积最小）",
+              "APNG（画质好、透明度完整）"
+            ],
+            "hint": "用于 /精灵图转GIF、/多图合成GIF。QQ 等聊天软件对 WebP/APNG 动图的支持不一，可能只显示第一帧。"
+          },
+          "split_max_frames": {
+            "description": "GIF 分解最多输出帧数",
+            "type": "int",
+            "default": 50,
+            "hint": "帧数更多时均匀抽取，首尾帧都保留。"
+          },
+          "multi_max_images": {
+            "description": "多图合成最多图片数",
+            "type": "int",
+            "default": 30
+          }
+        }
       },
-      "max_megapixels": {
-        "description": "单帧分辨率上限（百万像素）",
-        "type": "int",
-        "default": 40,
-        "hint": "例如 40 约等于 8000x5000。超过会直接拒绝，防止解码炸弹。"
+      "qq": {
+        "description": "QQ 图片保存（仅 OneBot v11）",
+        "type": "object",
+        "items": {
+          "enable_convert": {
+            "description": "启用 /转换（保存 QQ 图片为文件）",
+            "type": "bool",
+            "default": true
+          },
+          "enable_rename": {
+            "description": "启用 /外显取名（修改图片外显文字）",
+            "type": "bool",
+            "default": true
+          },
+          "enable_mface": {
+            "description": "允许提取 QQ 官方表情（商城表情）",
+            "type": "bool",
+            "default": true
+          },
+          "convert_group_mode": {
+            "description": "群聊中 /转换 的发送方式",
+            "type": "string",
+            "default": "private",
+            "options": [
+              "private",
+              "group",
+              "private_then_group"
+            ],
+            "labels": [
+              "私聊发送给使用者",
+              "直接发到群里（会进群文件）",
+              "私聊优先，失败再发群里"
+            ],
+            "hint": "在群里发送文件会上传到群文件，默认私聊发送避免占用群文件。非好友时会尝试群临时会话。"
+          },
+          "blocked_groups": {
+            "description": "禁止使用 /转换 的群号",
+            "type": "list",
+            "default": [],
+            "hint": "也可以由管理员在群里发送 /转换禁用、/转换启用 管理，结果会写回这里。"
+          }
+        }
       },
-      "max_frames": {
-        "description": "动图最大帧数",
-        "type": "int",
-        "default": 600
+      "mirage": {
+        "description": "幻影坦克",
+        "type": "object",
+        "items": {
+          "enable": {
+            "description": "启用幻影坦克",
+            "type": "bool",
+            "default": true
+          },
+          "timeout": {
+            "description": "等待发图超时（秒）",
+            "type": "int",
+            "default": 60
+          },
+          "max_mb": {
+            "description": "单张图片大小上限（MB）",
+            "type": "int",
+            "default": 10
+          },
+          "max_side": {
+            "description": "输出最长边（像素）",
+            "type": "int",
+            "default": 2048,
+            "hint": "表图更大时会等比缩小；里图会按表图尺寸居中裁剪对齐。"
+          },
+          "gray_front_ratio": {
+            "description": "黑白模式表图明暗范围",
+            "type": "float",
+            "default": 0.5,
+            "hint": "表图被压缩到亮区的比例（0.1～1）。越大表图对比度越高，里图越容易透出。"
+          },
+          "gray_back_ratio": {
+            "description": "黑白模式里图明暗范围",
+            "type": "float",
+            "default": 0.5,
+            "hint": "里图被压缩到暗区的比例（0.1～1）。越大里图越亮越清楚，表图越容易发灰。"
+          },
+          "a": {
+            "description": "彩色模式里图亮度系数",
+            "type": "float",
+            "default": 0.5,
+            "hint": "里图亮度的乘法缩放，值越大里图越亮。典型范围 0.3～1.5。"
+          },
+          "b": {
+            "description": "彩色模式里图亮度偏移",
+            "type": "float",
+            "default": 20.0,
+            "hint": "里图亮度的整体偏移，增大会整体提亮里图并降低透明度。典型范围 5～40。"
+          },
+          "w": {
+            "description": "彩色模式里图颜色权重",
+            "type": "float",
+            "default": 0.1,
+            "hint": "0 表示完全使用表图颜色，1 表示完全使用里图颜色。范围 0～1。"
+          }
+        }
       },
-      "memory_mb": {
-        "description": "动图展开内存上限（MB）",
-        "type": "int",
-        "default": 512,
-        "hint": "按 宽×高×4×帧数 估算，超过则拒绝处理。"
-      },
-      "gif_max_fps": {
-        "description": "GIF 最高帧率",
-        "type": "int",
-        "default": 50,
-        "hint": "GIF 每帧至少 10ms，多数播放器对低于 20ms 的帧会降速，所以默认 50 FPS。"
-      },
-      "gif_speed_allow_frame_drop": {
-        "description": "GIF 调速允许丢帧",
-        "type": "bool",
-        "default": false,
-        "hint": "关闭时：倍率超过帧率上限会自动回退到能达到的最高倍率；开启时：合并连续的短帧（均匀丢帧）以达到目标倍率。"
-      },
-      "gif_max_side": {
-        "description": "生成 GIF 的最大宽度",
-        "type": "int",
-        "default": 1024,
-        "hint": "视频转 GIF 时宽度不会超过这个值。"
-      },
-      "default_quality": {
-        "description": "默认图片质量（1～100）",
-        "type": "int",
-        "default": 85,
-        "hint": "图片转换、图片压缩不填质量时使用。"
-      },
-      "make_format": {
-        "description": "合成动图的输出格式",
-        "type": "string",
-        "default": "gif",
-        "options": [
-          "gif",
-          "webp",
-          "apng"
-        ],
-        "labels": [
-          "GIF（兼容性最好）",
-          "动态 WebP（体积最小）",
-          "APNG（画质好、透明度完整）"
-        ],
-        "hint": "用于 /精灵图转GIF、/多图合成GIF。QQ 等聊天软件对 WebP/APNG 动图的支持不一，可能只显示第一帧。"
-      },
-      "split_max_frames": {
-        "description": "GIF 分解最多输出帧数",
-        "type": "int",
-        "default": 50,
-        "hint": "帧数更多时均匀抽取，首尾帧都保留。"
-      },
-      "multi_max_images": {
-        "description": "多图合成最多图片数",
-        "type": "int",
-        "default": 30
-      },
-      "qq_enable_convert": {
-        "description": "QQ（仅 OneBot v11）：启用 /转换（保存 QQ 图片为文件）",
-        "type": "bool",
-        "default": true
-      },
-      "qq_enable_rename": {
-        "description": "QQ（仅 OneBot v11）：启用 /外显取名（修改图片外显文字）",
-        "type": "bool",
-        "default": true
-      },
-      "qq_enable_mface": {
-        "description": "QQ（仅 OneBot v11）：允许提取 QQ 官方表情（商城表情）",
-        "type": "bool",
-        "default": true
-      },
-      "qq_convert_group_mode": {
-        "description": "QQ（仅 OneBot v11）：群聊中 /转换 的发送方式",
-        "type": "string",
-        "default": "private",
-        "options": [
-          "private",
-          "group",
-          "private_then_group"
-        ],
-        "labels": [
-          "私聊发送给使用者",
-          "直接发到群里（会进群文件）",
-          "私聊优先，失败再发群里"
-        ],
-        "hint": "在群里发送文件会上传到群文件，默认私聊发送避免占用群文件。非好友时会尝试群临时会话。"
-      },
-      "qq_blocked_groups": {
-        "description": "QQ（仅 OneBot v11）：禁止使用 /转换 的群号",
-        "type": "list",
-        "default": [],
-        "hint": "也可以由管理员在群里发送 /转换禁用、/转换启用 管理，结果会写回这里。"
-      },
-      "mirage_enable": {
-        "description": "幻影坦克：启用",
-        "type": "bool",
-        "default": true
-      },
-      "mirage_timeout": {
-        "description": "幻影坦克：等待发图超时（秒）",
-        "type": "int",
-        "default": 60
-      },
-      "mirage_max_mb": {
-        "description": "幻影坦克：单张图片大小上限（MB）",
-        "type": "int",
-        "default": 10
-      },
-      "mirage_max_side": {
-        "description": "幻影坦克：输出最长边（像素）",
-        "type": "int",
-        "default": 2048,
-        "hint": "表图更大时会等比缩小；里图会按表图尺寸居中裁剪对齐。"
-      },
-      "mirage_gray_front_ratio": {
-        "description": "幻影坦克：黑白模式表图明暗范围",
-        "type": "float",
-        "default": 0.5,
-        "hint": "表图被压缩到亮区的比例（0.1～1）。越大表图对比度越高，里图越容易透出。"
-      },
-      "mirage_gray_back_ratio": {
-        "description": "幻影坦克：黑白模式里图明暗范围",
-        "type": "float",
-        "default": 0.5,
-        "hint": "里图被压缩到暗区的比例（0.1～1）。越大里图越亮越清楚，表图越容易发灰。"
-      },
-      "mirage_a": {
-        "description": "幻影坦克：彩色模式里图亮度系数",
-        "type": "float",
-        "default": 0.5,
-        "hint": "里图亮度的乘法缩放，值越大里图越亮。典型范围 0.3～1.5。"
-      },
-      "mirage_b": {
-        "description": "幻影坦克：彩色模式里图亮度偏移",
-        "type": "float",
-        "default": 20.0,
-        "hint": "里图亮度的整体偏移，增大会整体提亮里图并降低透明度。典型范围 5～40。"
-      },
-      "mirage_w": {
-        "description": "幻影坦克：彩色模式里图颜色权重",
-        "type": "float",
-        "default": 0.1,
-        "hint": "0 表示完全使用表图颜色，1 表示完全使用里图颜色。范围 0～1。"
-      },
-      "prism_enable": {
-        "description": "光棱坦克：启用（制作与显形）",
-        "type": "bool",
-        "default": true
-      },
-      "prism_timeout": {
-        "description": "光棱坦克：等待发图超时（秒）",
-        "type": "int",
-        "default": 60
-      },
-      "prism_max_mb": {
-        "description": "光棱坦克：单张图片大小上限（MB）",
-        "type": "int",
-        "default": 10
-      },
-      "prism_max_side": {
-        "description": "光棱坦克：输出最长边（像素）",
-        "type": "int",
-        "default": 1200,
-        "hint": "以里图尺寸为准等比缩小；表图按里图尺寸居中裁剪对齐。"
-      },
-      "prism_colored": {
-        "description": "光棱坦克：表图保留颜色",
-        "type": "bool",
-        "default": true,
-        "hint": "关闭后表图转为黑白。指令里写「彩色」「黑白」可临时指定。"
-      },
-      "prism_inner_limit": {
-        "description": "光棱坦克：里图色阶端点",
-        "type": "int",
-        "default": 32,
-        "hint": "里图被压到 0～此值的暗区。越大显形越清楚，但平时越容易看出痕迹。必须小于表图色阶端点。"
-      },
-      "prism_cover_limit": {
-        "description": "光棱坦克：表图色阶端点",
-        "type": "int",
-        "default": 64,
-        "hint": "表图被压到 此值～255 的亮区。越小表图越接近原图，但与里图的区分度越低。"
-      },
-      "prism_rate": {
-        "description": "光棱坦克：隐藏率",
-        "type": "int",
-        "default": 2,
-        "hint": "每 N 个像素藏 1 个里图像素（2～8）。2 显形最清楚但表图偏暗，越大表图越自然、显形越模糊。"
+      "prism": {
+        "description": "光棱坦克",
+        "type": "object",
+        "items": {
+          "enable": {
+            "description": "启用光棱坦克（制作与显形）",
+            "type": "bool",
+            "default": true
+          },
+          "timeout": {
+            "description": "等待发图超时（秒）",
+            "type": "int",
+            "default": 60
+          },
+          "max_mb": {
+            "description": "单张图片大小上限（MB）",
+            "type": "int",
+            "default": 10
+          },
+          "max_side": {
+            "description": "输出最长边（像素）",
+            "type": "int",
+            "default": 1200,
+            "hint": "以里图尺寸为准等比缩小；表图按里图尺寸居中裁剪对齐。"
+          },
+          "colored": {
+            "description": "表图保留颜色",
+            "type": "bool",
+            "default": true,
+            "hint": "关闭后表图转为黑白。指令里写「彩色」「黑白」可临时指定。"
+          },
+          "inner_limit": {
+            "description": "里图色阶端点",
+            "type": "int",
+            "default": 32,
+            "hint": "里图被压到 0～此值的暗区。越大显形越清楚，但平时越容易看出痕迹。必须小于表图色阶端点。"
+          },
+          "cover_limit": {
+            "description": "表图色阶端点",
+            "type": "int",
+            "default": 64,
+            "hint": "表图被压到 此值～255 的亮区。越小表图越接近原图，但与里图的区分度越低。"
+          },
+          "rate": {
+            "description": "隐藏率",
+            "type": "int",
+            "default": 2,
+            "hint": "每 N 个像素藏 1 个里图像素（2～8）。2 显形最清楚但表图偏暗，越大表图越自然、显形越模糊。"
+          }
+        }
       }
     }
   },

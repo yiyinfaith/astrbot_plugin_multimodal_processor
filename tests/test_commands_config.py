@@ -97,8 +97,18 @@ def test_schema_matches_settings_dataclasses():
     assert [schema[g]["description"] for g in schema] == ["通用设置", "文本处理", "图片处理", "视频处理", "音频处理"]
     assert set(schema) == set(names)
     defaults = Settings()
+    def flatten(items, prefix=""):
+        out = {}
+        for key, item in items.items():
+            if item.get("type") == "object" and "items" in item:
+                out.update(flatten(item["items"], f"{prefix}{key}."))
+            else:
+                out[prefix + key] = item
+        return out
+
+    assert [b["description"] for b in schema["image"]["items"].values()] == ["基础", "动图（GIF）", "QQ 图片保存（仅 OneBot v11）", "幻影坦克", "光棱坦克"]
     for group, mapping in names.items():
-        items = schema[group]["items"]
+        items = flatten(schema[group]["items"])
         assert set(items) == set(mapping), group
         for key, item in items.items():
             assert "description" in item and "type" in item
@@ -114,7 +124,7 @@ def test_settings_clamp_and_fallback():
     s = Settings.load({
         "general": {"heavy_concurrency": 99, "task_timeout": "abc", "debug": "true"},
         "video": {"default_crf": 5, "preset": "bogus", "ffmpeg_path": ""},
-        "image": {"qq_blocked_groups": "123, 456，123", "qq_convert_group_mode": "x", "mirage_w": 7, "prism_rate": 99},
+        "image": {"qq": {"blocked_groups": "123, 456，123", "convert_group_mode": "x"}, "mirage": {"w": 7}, "prism": {"rate": 99}},
     })
     assert s.general.heavy_concurrency == 8
     assert s.general.task_timeout == 180

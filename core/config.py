@@ -326,29 +326,33 @@ class Settings:
 
         return cls(
             general=GeneralSettings.load({**group("general"), **{"text_" + k: v for k, v in group("text").items()}}),
-            image=ImageSettings.load(group("image")),
-            qq=QQSettings.load(_prefixed(group("image"), "qq_")),
-            mirage=MirageSettings.load(_prefixed(group("image"), "mirage_")),
-            prism=PrismSettings.load(_prefixed(group("image"), "prism_")),
+            image=ImageSettings.load({**_sub(group("image"), "basic"), **_sub(group("image"), "gif")}),
+            qq=QQSettings.load(_sub(group("image"), "qq")),
+            mirage=MirageSettings.load(_sub(group("image"), "mirage")),
+            prism=PrismSettings.load(_sub(group("image"), "prism")),
             video=VideoSettings.load(group("video")),
             audio=AudioSettings.load(group("audio")),
         )
 
 
-# 配置界面只有 4 个分组：QQ、幻影坦克、光棱坦克的设置放在「图片」分组里，键名带前缀
-EMBEDDED_IN_IMAGE = {"qq_": "qq", "mirage_": "mirage", "prism_": "prism"}
+# 「图片处理」分组在配置界面里再分成几个小框：基础、动图、QQ、幻影坦克、光棱坦克
+IMAGE_BOXES = {"basic": "image", "gif": "image", "qq": "qq", "mirage": "mirage", "prism": "prism"}
+GIF_FIELDS = {"gif_max_fps", "gif_speed_allow_frame_drop", "gif_max_side", "make_format", "split_max_frames", "multi_max_images"}
 
 
-def _prefixed(raw: dict, prefix: str) -> dict:
-    return {key[len(prefix):]: value for key, value in raw.items() if key.startswith(prefix)}
+def _sub(raw: dict, key: str) -> dict:
+    value = raw.get(key) if isinstance(raw, dict) else None
+    return value if isinstance(value, dict) else {}
 
 
 def setting_names() -> dict[str, dict[str, tuple[str, str]]]:
-    """配置界面每个分组的键 -> (设置对象, 字段名)，供测试核对 _conf_schema.json。"""
-    image = {f.name: ("image", f.name) for f in fields(ImageSettings)}
-    for prefix, target in EMBEDDED_IN_IMAGE.items():
-        cls = {"qq": QQSettings, "mirage": MirageSettings, "prism": PrismSettings}[target]
-        image.update({prefix + f.name: (target, f.name) for f in fields(cls)})
+    """配置界面每个分组的键（小框里的写成「框.键」）-> (设置对象, 字段名)，供测试核对 _conf_schema.json。"""
+    image: dict[str, tuple[str, str]] = {}
+    for f in fields(ImageSettings):
+        box = "gif" if f.name in GIF_FIELDS else "basic"
+        image[f"{box}.{f.name}"] = ("image", f.name)
+    for box, cls in (("qq", QQSettings), ("mirage", MirageSettings), ("prism", PrismSettings)):
+        image.update({f"{box}.{f.name}": (box, f.name) for f in fields(cls)})
     return {
         "general": {f.name: ("general", f.name) for f in fields(GeneralSettings) if not f.name.startswith("text_")},
         "image": image,

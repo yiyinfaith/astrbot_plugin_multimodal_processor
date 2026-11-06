@@ -254,7 +254,11 @@ class MultimodalApp:
             if not isinstance(section, dict):
                 section = {}
                 self.config["image"] = section
-            section["qq_blocked_groups"] = list(groups)
+            box = section.get("qq")
+            if not isinstance(box, dict):
+                box = {}
+                section["qq"] = box
+            box["blocked_groups"] = list(groups)
             saver = getattr(self.config, "save_config", None)
             if callable(saver):
                 saver()

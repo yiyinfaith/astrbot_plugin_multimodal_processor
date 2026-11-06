@@ -94,7 +94,7 @@ def test_usage_error_reports_usage(make_app):
 
 
 def test_feature_disabled_and_platform_checks(tmp_path, make_app):
-    app = make_app({"image": {"enable": False}})
+    app = make_app({"image": {"basic": {"enable": False}}})
     src = make_png(tmp_path / "a.png")
     run(app.handle_command(FakeEvent([plain("/反色"), image(src)], message_str="反色"), "反色"))
     assert "已在配置中关闭" in app.sender.texts()[0]
@@ -115,16 +115,16 @@ def test_admin_commands_and_config_writeback(make_app):
         def save_config(self):
             Config.saved += 1
 
-    config = Config({"image": {"qq_blocked_groups": []}})
+    config = Config({"image": {"qq": {"blocked_groups": []}}})
     app = make_app(config)
     run(app.handle_command(FakeEvent([plain("/转换禁用")], message_str="转换禁用", group_id="555", admin=True), "转换禁用"))
-    assert config["image"]["qq_blocked_groups"] == ["555"] and Config.saved == 1
+    assert config["image"]["qq"]["blocked_groups"] == ["555"] and Config.saved == 1
     # 非管理员经由被动路径也会被拦下
     app.sender.calls.clear()
     run(app.handle_passive(FakeEvent([plain("/转换启用 555")], message_str="", group_id="1", is_at_or_wake_command=False)))
     assert "管理员" in app.sender.texts()[0]
     run(app.handle_command(FakeEvent([plain("/转换启用 555")], message_str="转换启用 555", admin=True), "转换启用"))
-    assert config["image"]["qq_blocked_groups"] == []
+    assert config["image"]["qq"]["blocked_groups"] == []
 
 
 def test_broken_image_does_not_crash(tmp_path, make_app):
