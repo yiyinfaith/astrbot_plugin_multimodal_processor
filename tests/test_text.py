@@ -62,9 +62,9 @@ def test_text_commands_end_to_end(make_app):
     assert app.sender.texts()[-1] == "c\nb\na"
     run(app.handle_command(FakeEvent([plain("/转大写")], message_str="转大写"), "转大写"))
     assert "请在指令后面写上文字" in app.sender.texts()[-1]
-    long_app = make_app({"general": {"text_file_threshold": 200}})
+    long_app = make_app({"text": {"file_threshold": 200}})
     run(long_app.handle_command(FakeEvent([plain("/转大写 " + "a" * 500)], message_str="转大写"), "转大写"))
     assert long_app.sender.kinds()[-1] == "file"
-    off = make_app({"general": {"text_enable": False}})
+    off = make_app({"text": {"enable": False}})
     run(off.handle_command(FakeEvent([plain("/转大写 a")], message_str="转大写 a"), "转大写"))
     assert "文本功能已在配置中关闭" in off.sender.texts()[0]

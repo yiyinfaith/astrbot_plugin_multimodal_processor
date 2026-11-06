@@ -327,7 +327,7 @@ class Settings:
             return value if isinstance(value, dict) else {}
 
         return cls(
-            general=GeneralSettings.load(group("general")),
+            general=GeneralSettings.load({**group("general"), **{"text_" + k: v for k, v in group("text").items()}}),
             image=ImageSettings.load(group("image")),
             qq=QQSettings.load(_prefixed(group("image"), "qq_")),
             mirage=MirageSettings.load(_prefixed(group("image"), "mirage_")),
@@ -352,8 +352,9 @@ def setting_names() -> dict[str, dict[str, tuple[str, str]]]:
         cls = {"qq": QQSettings, "mirage": MirageSettings, "prism": PrismSettings}[target]
         image.update({prefix + f.name: (target, f.name) for f in fields(cls)})
     return {
-        "general": {f.name: ("general", f.name) for f in fields(GeneralSettings)},
+        "general": {f.name: ("general", f.name) for f in fields(GeneralSettings) if not f.name.startswith("text_")},
         "image": image,
+        "text": {f.name[5:]: ("general", f.name) for f in fields(GeneralSettings) if f.name.startswith("text_")},
         "video": {f.name: ("video", f.name) for f in fields(VideoSettings)},
         "audio": {f.name: ("audio", f.name) for f in fields(AudioSettings)},
     }

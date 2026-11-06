@@ -70,22 +70,6 @@
         "description": "调试日志",
         "type": "bool",
         "default": false
-      },
-      "text_enable": {
-        "description": "文本：启用文本处理指令",
-        "type": "bool",
-        "default": true
-      },
-      "text_max_chars": {
-        "description": "文本：最多处理字数",
-        "type": "int",
-        "default": 20000
-      },
-      "text_file_threshold": {
-        "description": "文本：结果超过多少字改为文件发送",
-        "type": "int",
-        "default": 3000,
-        "hint": "平台不支持文件时会截断后以文字发送。"
       }
     }
   },
@@ -304,6 +288,28 @@
         "type": "int",
         "default": 2,
         "hint": "每 N 个像素藏 1 个里图像素（2～8）。2 显形最清楚但表图偏暗，越大表图越自然、显形越模糊。"
+      }
+    }
+  },
+  "text": {
+    "description": "文本",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用文本处理指令",
+        "type": "bool",
+        "default": true
+      },
+      "max_chars": {
+        "description": "最多处理字数",
+        "type": "int",
+        "default": 20000
+      },
+      "file_threshold": {
+        "description": "结果超过多少字改为文件发送",
+        "type": "int",
+        "default": 3000,
+        "hint": "平台不支持文件时会截断后以文字发送。"
       }
     }
   },
