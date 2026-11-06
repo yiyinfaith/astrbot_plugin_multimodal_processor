@@ -1,4 +1,4 @@
-"""QQ 图片保存（/转换）、修改外显（/取名）与群禁用管理。仅 OneBot v11（aiocqhttp）可用。"""
+"""QQ 图片保存（/转换）、修改外显（/外显取名）与群禁用管理。仅 OneBot v11（aiocqhttp）可用。"""
 
 from __future__ import annotations
 

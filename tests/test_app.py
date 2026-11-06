@@ -114,9 +114,9 @@ def test_feature_disabled_and_platform_checks(tmp_path, make_app):
     app = make_app()
     run(app.handle_command(FakeEvent([plain("/转换"), image(src)], message_str="转换", platform="telegram"), "转换"))
     assert "QQ 专属功能" in app.sender.texts()[0]
-    run(app.handle_command(FakeEvent([plain("/取名 好耶"), image(src)], message_str="取名 好耶", platform="webchat"), "取名"))
+    run(app.handle_command(FakeEvent([plain("/外显取名 好耶"), image(src)], message_str="外显取名 好耶", platform="webchat"), "外显取名"))
     assert "QQ 专属功能" in app.sender.texts()[1]
-    run(app.handle_command(FakeEvent([plain("/外显 好耶"), image(src)], message_str="外显 好耶", platform="telegram"), "取名"))
+    run(app.handle_command(FakeEvent([plain("/外显取名 好耶"), image(src)], message_str="外显取名 好耶", platform="telegram"), "外显取名"))
     assert "QQ 专属功能" in app.sender.texts()[2]
 
 

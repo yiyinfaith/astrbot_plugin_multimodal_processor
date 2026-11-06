@@ -167,7 +167,7 @@
         "default": true
       },
       "enable_rename": {
-        "description": "启用 /取名（修改图片外显文字）",
+        "description": "启用 /外显取名（修改图片外显文字）",
         "type": "bool",
         "default": true
       },

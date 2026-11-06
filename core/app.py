@@ -229,7 +229,7 @@ class MultimodalApp:
             if handler == "qq_convert" and not s.qq.enable_convert:
                 raise FeatureDisabled("QQ 图片保存（/转换）已在配置中关闭")
             if handler == "qq_rename" and not s.qq.enable_rename:
-                raise FeatureDisabled("修改图片外显（/取名）已在配置中关闭")
+                raise FeatureDisabled("修改图片外显（/外显取名）已在配置中关闭")
             return
         feature = _FEATURE_OF_CATEGORY.get(category)
         if feature and not getattr(getattr(s, feature), "enable", True):
