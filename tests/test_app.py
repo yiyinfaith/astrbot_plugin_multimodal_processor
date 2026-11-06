@@ -43,7 +43,7 @@ def test_quoted_image_is_preferred(tmp_path, make_app):
 
 
 def test_missing_media_explicit_vs_passive(tmp_path, make_app):
-    app = make_app({"general": {"match_mode": True}})
+    app = make_app()
     explicit = FakeEvent([plain("/反色")], message_str="反色")
     run(app.handle_command(explicit, "反色"))
     assert "请引用一张图片" in app.sender.texts()[0] and explicit.stopped
@@ -54,26 +54,14 @@ def test_missing_media_explicit_vs_passive(tmp_path, make_app):
     assert app.sender.calls == [] and not chat.stopped, "被动模式没有媒体时不应回复，也不应拦截消息"
 
 
-def test_match_mode_switch(tmp_path, make_app):
+def test_no_prefix_never_triggers(tmp_path, make_app):
+    """不带前缀、也没有唤醒机器人时，任何指令都不触发。"""
     src = make_png(tmp_path / "a.png")
-    off = make_app()
-    event = FakeEvent([plain("左右翻转"), image(src)], message_str="左右翻转", group_id="1", is_at_or_wake_command=False)
-    run(off.handle_passive(event))
-    assert off.sender.calls == []
-
-    on = make_app({"general": {"match_mode": True}})
-    event = FakeEvent([plain("左右翻转"), image(src)], message_str="左右翻转", group_id="1", is_at_or_wake_command=False)
-    run(on.handle_passive(event))
-    assert on.sender.kinds() == ["image"] and event.stopped
-    # 精准匹配：带其他文字不会触发
-    on.sender.calls.clear()
-    chat = FakeEvent([plain("左右翻转好玩"), image(src)], message_str="左右翻转好玩", group_id="1", is_at_or_wake_command=False)
-    run(on.handle_passive(chat))
-    assert on.sender.calls == []
-    # 帮助等不需要媒体的指令不参与无前缀匹配
-    helpme = FakeEvent([plain("多模态处理帮助")], message_str="多模态处理帮助", group_id="1", is_at_or_wake_command=False)
-    run(on.handle_passive(helpme))
-    assert on.sender.calls == []
+    app = make_app({"general": {"match_mode": True}})  # 旧配置项残留也不应生效
+    for text in ("左右翻转", "多模态处理帮助", "转大写 hello"):
+        event = FakeEvent([plain(text), image(src)], message_str=text, group_id="1", is_at_or_wake_command=False)
+        run(app.handle_passive(event))
+        assert app.sender.calls == [] and not event.stopped, text
 
 
 def test_reply_with_auto_at_still_recognizes_prefixed_command(tmp_path, make_app):
@@ -90,7 +78,7 @@ def test_reply_with_auto_at_still_recognizes_prefixed_command(tmp_path, make_app
 
 
 def test_passive_skips_when_astrbot_command_will_handle(tmp_path, make_app):
-    app = make_app({"general": {"match_mode": True}})
+    app = make_app()
     src = make_png(tmp_path / "a.png")
     event = FakeEvent([plain("/反色"), image(src)], message_str="反色", is_at_or_wake_command=True)
     run(app.handle_passive(event))

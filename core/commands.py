@@ -1,7 +1,7 @@
 """指令注册表与统一解析。
 
 所有指令的名称、别名、用法、示例都只在这里定义：
-main.py 的装饰器、被动关键词匹配、帮助文本、参数解析都读取这张表。
+main.py 的装饰器、帮助文本、参数解析都读取这张表。
 """
 
 from __future__ import annotations
@@ -22,8 +22,6 @@ class CommandSpec:
     # 别名 -> 预置参数（例如 音频转MP3 -> ("mp3",)）
     aliases: dict[str, tuple[str, ...]] = field(default_factory=dict)
     admin: bool = False
-    # 被动关键词模式下是否需要先找到媒体才响应（帮助、管理类指令不需要）
-    needs_media: bool = True
 
     @property
     def all_names(self) -> tuple[str, ...]:
@@ -144,31 +142,29 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         "转换禁用", "qq_block", "qq", "（管理员）禁止某个群使用 /转换", "[群号]",
         ("在群里发送 /转换禁用", "/转换禁用 123456"),
-        "不填群号时作用于当前群。", aliases={"convert addblock": ()}, admin=True, needs_media=False,
+        "不填群号时作用于当前群。", aliases={"convert addblock": ()}, admin=True,
     ),
     CommandSpec(
         "转换启用", "qq_unblock", "qq", "（管理员）恢复某个群的 /转换", "[群号]",
         ("/转换启用", "/转换启用 123456"),
-        aliases={"convert delblock": ()}, admin=True, needs_media=False,
+        aliases={"convert delblock": ()}, admin=True,
     ),
     # ---------------- 幻影坦克 ----------------
     CommandSpec(
         "幻影坦克", "mirage", "mirage", "生成黑白幻影坦克（白底显示表图，黑底显示里图）", "",
         ("/幻影坦克 [附带两张图片]", "/幻影坦克 → 依次发送表图、里图"),
         "可以随指令直接附带两张图（第一张为表图），也可以按提示分步发送；发送「取消」中止。",
-        needs_media=False,
     ),
     CommandSpec(
         "彩色幻影坦克", "mirage", "mirage", "生成彩色幻影坦克", "",
         ("/彩色幻影坦克 [附带两张图片]",),
-        "用法同 /幻影坦克，颜色参数在配置里调整。", aliases={"彩色幻影": ()}, needs_media=False,
+        "用法同 /幻影坦克，颜色参数在配置里调整。", aliases={"彩色幻影": ()},
     ),
     # ---------------- 光棱坦克 ----------------
     CommandSpec(
         "光棱坦克", "prism_tank", "prism", "生成光棱坦克（平时显示表图，拉伸暗部色阶后显示里图）", "[彩色|黑白]",
         ("/光棱坦克 [附带两张图片]", "/光棱坦克 黑白 → 依次发送表图、里图"),
         "用法同幻影坦克：一次附带两张图（第一张为表图）或分步发送，发送「取消」中止。不填参数时表图是否保留颜色见配置。",
-        needs_media=False,
     ),
     CommandSpec(
         "光棱显形", "prism_reveal", "prism", "还原光棱坦克里隐藏的图片", "[阈值 1~200]",
@@ -177,27 +173,27 @@ COMMANDS: tuple[CommandSpec, ...] = (
         aliases={"光棱坦克显形": ()},
     ),
     # ---------------- 文本 ----------------
-    CommandSpec("去除MD格式", "text", "text", "去掉 Markdown 标记，转成纯文本", "[文本]", ("引用一条消息发送 /去除MD格式",), needs_media=False),
-    CommandSpec("添加MD格式", "text", "text", "给普通文本加上标题、加粗、列表、链接等 Markdown 格式", "[文本]", ("/添加MD格式 购物清单\n1. 牛奶\n2. 面包",), needs_media=False),
-    CommandSpec("MD代码块", "text", "text", "包成 Markdown 代码块", "[语言] 文本", ("/MD代码块 python\nprint(1)",), needs_media=False),
-    CommandSpec("MD引用", "text", "text", "每行加上 > 变成引用", "[文本]", ("/MD引用 名言一句",), needs_media=False),
-    CommandSpec("MD列表", "text", "text", "每行变成列表项", "[有序] 文本", ("/MD列表 有序\n第一\n第二",), needs_media=False),
-    CommandSpec("MD表格", "text", "text", "把 CSV / TSV / 空格分隔的文本转成 Markdown 表格（首行为表头）", "文本", ("/MD表格 姓名,年龄\n张三,18",), needs_media=False),
-    CommandSpec("字数统计", "text", "text", "统计字符、汉字、单词、行数、段落", "[文本]", ("引用一条消息发送 /字数统计",), needs_media=False),
-    CommandSpec("全角转半角", "text", "text", "全角字母数字标点转半角", "[文本]", ("/全角转半角 ＡＢＣ１２３",), needs_media=False),
-    CommandSpec("半角转全角", "text", "text", "半角字符转全角", "[文本]", ("/半角转全角 ABC123",), needs_media=False),
-    CommandSpec("转大写", "text", "text", "英文转大写", "[文本]", ("/转大写 hello",), needs_media=False),
-    CommandSpec("转小写", "text", "text", "英文转小写", "[文本]", ("/转小写 HELLO",), needs_media=False),
-    CommandSpec("清理空白", "text", "text", "去掉行首行尾空格、合并多余空格和空行", "[文本]", ("引用一条消息发送 /清理空白",), needs_media=False),
-    CommandSpec("文本去重", "text", "text", "删除重复的行（保留第一次出现）", "[文本]", ("引用一条消息发送 /文本去重",), needs_media=False),
-    CommandSpec("文本排序", "text", "text", "按行排序（数字按大小）", "[倒序] 文本", ("/文本排序 倒序\nb\na",), needs_media=False),
-    CommandSpec("文本反转", "text", "text", "把文字倒过来", "[文本]", ("/文本反转 上海自来水",), needs_media=False),
-    CommandSpec("Base64编码", "text", "text", "Base64 编码（UTF-8）", "[文本]", ("/Base64编码 你好",), needs_media=False),
-    CommandSpec("Base64解码", "text", "text", "Base64 解码", "[文本]", ("/Base64解码 5L2g5aW9",), needs_media=False),
-    CommandSpec("URL编码", "text", "text", "URL 编码", "[文本]", ("/URL编码 a b&c",), needs_media=False),
-    CommandSpec("URL解码", "text", "text", "URL 解码", "[文本]", ("/URL解码 a%20b",), needs_media=False),
-    CommandSpec("JSON格式化", "text", "text", "格式化 JSON（加「压缩」则压成一行）", "[压缩] 文本", ("/JSON格式化 {\"a\":1}",), needs_media=False),
-    CommandSpec("文本哈希", "text", "text", "计算 MD5 / SHA1 / SHA256", "[文本]", ("/文本哈希 hello",), needs_media=False),
+    CommandSpec("去除MD格式", "text", "text", "去掉 Markdown 标记，转成纯文本", "[文本]", ("引用一条消息发送 /去除MD格式",)),
+    CommandSpec("添加MD格式", "text", "text", "给普通文本加上标题、加粗、列表、链接等 Markdown 格式", "[文本]", ("/添加MD格式 购物清单\n1. 牛奶\n2. 面包",)),
+    CommandSpec("MD代码块", "text", "text", "包成 Markdown 代码块", "[语言] 文本", ("/MD代码块 python\nprint(1)",)),
+    CommandSpec("MD引用", "text", "text", "每行加上 > 变成引用", "[文本]", ("/MD引用 名言一句",)),
+    CommandSpec("MD列表", "text", "text", "每行变成列表项", "[有序] 文本", ("/MD列表 有序\n第一\n第二",)),
+    CommandSpec("MD表格", "text", "text", "把 CSV / TSV / 空格分隔的文本转成 Markdown 表格（首行为表头）", "文本", ("/MD表格 姓名,年龄\n张三,18",)),
+    CommandSpec("字数统计", "text", "text", "统计字符、汉字、单词、行数、段落", "[文本]", ("引用一条消息发送 /字数统计",)),
+    CommandSpec("全角转半角", "text", "text", "全角字母数字标点转半角", "[文本]", ("/全角转半角 ＡＢＣ１２３",)),
+    CommandSpec("半角转全角", "text", "text", "半角字符转全角", "[文本]", ("/半角转全角 ABC123",)),
+    CommandSpec("转大写", "text", "text", "英文转大写", "[文本]", ("/转大写 hello",)),
+    CommandSpec("转小写", "text", "text", "英文转小写", "[文本]", ("/转小写 HELLO",)),
+    CommandSpec("清理空白", "text", "text", "去掉行首行尾空格、合并多余空格和空行", "[文本]", ("引用一条消息发送 /清理空白",)),
+    CommandSpec("文本去重", "text", "text", "删除重复的行（保留第一次出现）", "[文本]", ("引用一条消息发送 /文本去重",)),
+    CommandSpec("文本排序", "text", "text", "按行排序（数字按大小）", "[倒序] 文本", ("/文本排序 倒序\nb\na",)),
+    CommandSpec("文本反转", "text", "text", "把文字倒过来", "[文本]", ("/文本反转 上海自来水",)),
+    CommandSpec("Base64编码", "text", "text", "Base64 编码（UTF-8）", "[文本]", ("/Base64编码 你好",)),
+    CommandSpec("Base64解码", "text", "text", "Base64 解码", "[文本]", ("/Base64解码 5L2g5aW9",)),
+    CommandSpec("URL编码", "text", "text", "URL 编码", "[文本]", ("/URL编码 a b&c",)),
+    CommandSpec("URL解码", "text", "text", "URL 解码", "[文本]", ("/URL解码 a%20b",)),
+    CommandSpec("JSON格式化", "text", "text", "格式化 JSON（加「压缩」则压成一行）", "[压缩] 文本", ("/JSON格式化 {\"a\":1}",)),
+    CommandSpec("文本哈希", "text", "text", "计算 MD5 / SHA1 / SHA256", "[文本]", ("/文本哈希 hello",)),
     # ---------------- 视频 ----------------
     CommandSpec(
         "视频转GIF", "video_to_gif", "video", "视频片段转 GIF", "[帧率] [宽度] [时长] [开始时间]",
@@ -241,7 +237,6 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         "多模态处理帮助", "help", "help", "查看指令列表或某个指令的详细用法", "[分类 | 指令]",
         ("/多模态处理帮助", "/多模态处理帮助 视频", "/多模态处理帮助 视频裁剪"),
-        needs_media=False,
     ),
 )
 

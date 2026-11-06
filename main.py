@@ -45,10 +45,10 @@ class MultimodalProcessor(Star):
     async def terminate(self):
         await self.app.stop()
 
-    # ------------------------------------------------------------ 无前缀关键词 / @某人 + 指令
+    # ------------------------------------------------------------ @某人 + 指令
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_message(self, event: AstrMessageEvent):
-        """精准关键词匹配，以及回复他人消息时 QQ 自动插入 @ 导致指令未被识别的情况"""
+        """识别回复他人消息时 QQ 自动插入 @ 导致未被 AstrBot 唤醒的「/指令」"""
         await self.app.handle_passive(event)
 
     # ------------------------------------------------------------ 帮助

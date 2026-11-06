@@ -25,7 +25,7 @@ def test_main_imports_and_registers_all_commands():
     module = importlib.import_module("mmp.main")
     assert issubclass(module.MultimodalProcessor, Star)
     handlers = [h for h in star_handlers_registry if h.handler_module_path == "mmp.main"]
-    # 每条指令一个处理函数，外加一个被动关键词监听
+    # 每条指令一个处理函数，外加一个识别「@某人 /指令」的监听器
     assert len(handlers) == len(COMMANDS) + 1
 
 

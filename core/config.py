@@ -67,7 +67,6 @@ def _str_list(value: Any) -> list[str]:
 
 @dataclass(slots=True)
 class GeneralSettings:
-    match_mode: bool = False
     enable_at_avatar: bool = True
     task_timeout: int = 180
     heavy_concurrency: int = 1
@@ -86,7 +85,6 @@ class GeneralSettings:
     @classmethod
     def load(cls, raw: dict) -> "GeneralSettings":
         return cls(
-            match_mode=_bool(raw.get("match_mode"), False),
             enable_at_avatar=_bool(raw.get("enable_at_avatar"), True),
             task_timeout=_int(raw.get("task_timeout"), 180, 10, 3600),
             heavy_concurrency=_int(raw.get("heavy_concurrency"), 1, 1, 8),

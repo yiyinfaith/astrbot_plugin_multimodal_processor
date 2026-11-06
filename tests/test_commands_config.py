@@ -112,13 +112,13 @@ def test_schema_matches_settings_dataclasses():
 
 def test_settings_clamp_and_fallback():
     s = Settings.load({
-        "general": {"heavy_concurrency": 99, "task_timeout": "abc", "match_mode": "true"},
+        "general": {"heavy_concurrency": 99, "task_timeout": "abc", "debug": "true"},
         "video": {"default_crf": 5, "preset": "bogus", "ffmpeg_path": ""},
         "image": {"qq_blocked_groups": "123, 456，123", "qq_convert_group_mode": "x", "mirage_w": 7, "prism_rate": 99},
     })
     assert s.general.heavy_concurrency == 8
     assert s.general.task_timeout == 180
-    assert s.general.match_mode is True
+    assert s.general.debug is True
     assert s.video.default_crf == 18
     assert s.video.preset == "veryfast"
     assert s.video.ffmpeg_path == "ffmpeg"

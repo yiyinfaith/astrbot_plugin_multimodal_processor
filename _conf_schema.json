@@ -3,12 +3,6 @@
     "description": "通用设置",
     "type": "object",
     "items": {
-      "match_mode": {
-        "description": "精准关键词匹配（无需 / 前缀）",
-        "type": "bool",
-        "default": false,
-        "hint": "开启后，引用媒体直接发送「反色」「调速 2」「视频转GIF」等即可触发；只有找到图片/视频/音频时才会响应，不会误触普通聊天。帮助、幻影坦克和管理指令始终需要前缀。"
-      },
       "enable_at_avatar": {
         "description": "允许 @用户 取 QQ 头像作为图片",
         "type": "bool",

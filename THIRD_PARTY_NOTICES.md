@@ -7,7 +7,7 @@
 - 仓库：https://github.com/lirundong093-glitch/astrbot_plugin_pic_toolbox
 - 作者：Lucy（lirundong093-glitch）
 - 许可：GNU AGPL-3.0
-- 使用范围：反色、旋转、翻转、半边对称、GIF 逐帧处理与调速（含帧率上限与丢帧策略）、@用户取头像、精准关键词匹配的功能设计。实现已重写（改用 Pillow 写 GIF，修正奇数尺寸对称错位、按平均帧率计算调速倍率等问题）。
+- 使用范围：反色、旋转、翻转、半边对称、GIF 逐帧处理与调速（含帧率上限与丢帧策略）、@用户取头像的功能设计。实现已重写（改用 Pillow 写 GIF，修正奇数尺寸对称错位、按平均帧率计算调速倍率等问题）。
 - 未包含：摸头、发射、杀、撅人、鞭笞等表情包生成器及其全部图片素材、人脸检测模型与 OpenCV 依赖。
 
 ## astrbot_plugins_ConvetPicture
@@ -61,7 +61,3 @@ SOFTWARE.
 - 参考：https://github.com/TankFactory/Mirage_Image 、https://github.com/TankFactory/Mirage_Decode （MIT）及其中引用的百度贴吧帖子「开个贴细说新式高科技坦克」
 - 使用范围：「灰度值分离 + 像素交错」的隐藏图原理。`processors/prism/algorithm.py` 为独立实现（NumPy 向量化），未复制上述仓库的代码；显形算法（自动阈值、归一化滤波补齐）为本插件自行设计。
 
-## astrbot-plugin-pic-mirror
-
-- 仓库：https://github.com/FenChen0211/astrbot-plugin-pic-mirror
-- 使用范围：精准关键词匹配（无前缀触发）的思路，经 astrbot_plugin_pic_toolbox 间接引入；未使用其代码。

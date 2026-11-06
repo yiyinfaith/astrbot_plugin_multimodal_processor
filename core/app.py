@@ -1,6 +1,6 @@
 """插件运行时：持有配置、任务管理、FFmpeg、发送器，负责指令分发与统一的错误处理。
 
-main.py 里每个指令处理函数都只调用 `handle_command`；没有前缀的关键词由 `handle_passive` 处理。
+main.py 里每个指令处理函数都只调用 `handle_command`；AstrBot 指令系统接不到的「@某人 /指令」由 `handle_passive` 处理。
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class Invocation:
     app: "MultimodalApp"
     event: Any
     parsed: ParsedCommand
-    explicit: bool  # 带前缀/唤醒触发（True）还是被动关键词触发（False）
+    explicit: bool  # 由带前缀的指令或唤醒触发（目前总是 True）
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -179,7 +179,10 @@ class MultimodalApp:
         await self.run(event, parsed, explicit=True)
 
     async def handle_passive(self, event: Any) -> None:
-        """处理 AstrBot 指令系统接不到的情况：精准关键词（无前缀）以及「@某人 /指令」。"""
+        """处理 AstrBot 指令系统接不到的情况：QQ 回复他人时自动插入 @，导致「@某人 /指令」不被唤醒。
+
+        所有指令都必须带唤醒前缀（或 @ 机器人）才会触发，不做无前缀的关键词匹配。
+        """
         text, prefixed = self.command_text(event)
         parsed = parse_command(text)
         if parsed is None:
@@ -188,9 +191,7 @@ class MultimodalApp:
             return  # 交给 @filter.command 注册的处理函数
         woken = bool(getattr(event, "is_at_or_wake_command", False))
         if not (prefixed or woken):
-            # 精准关键词只对需要媒体的指令生效，并且必须找到媒体才会响应（见 MediaMissing 处理）
-            if not self.settings.general.match_mode or not parsed.spec.needs_media:
-                return
+            return
         await self.run(event, parsed, explicit=prefixed or woken)
 
     async def run(self, event: Any, parsed: ParsedCommand, *, explicit: bool) -> None:
