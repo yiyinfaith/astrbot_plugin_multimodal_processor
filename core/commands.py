@@ -216,9 +216,9 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec("音频信息", "audio_info", "audio", "查看格式、时长、码率、采样率", examples=("/音频信息",)),
     # ---------------- 帮助 ----------------
     CommandSpec(
-        "多模态帮助", "help", "help", "查看指令列表或某个指令的详细用法", "[分类 | 指令]",
-        ("/多模态帮助", "/多模态帮助 视频", "/多模态帮助 视频裁剪"),
-        aliases={"多模态": ()}, needs_media=False,
+        "多模态处理帮助", "help", "help", "查看指令列表或某个指令的详细用法", "[分类 | 指令]",
+        ("/多模态处理帮助", "/多模态处理帮助 视频", "/多模态处理帮助 视频裁剪"),
+        needs_media=False,
     ),
 )
 
@@ -265,7 +265,7 @@ def parse_command(text: str | None) -> ParsedCommand | None:
 
 
 def help_overview(ffmpeg_ok: bool = True) -> str:
-    lines = ["多模态处理器 指令一览（/多模态帮助 <分类或指令> 查看详细用法）"]
+    lines = ["多模态处理器 指令一览（/多模态处理帮助 <分类或指令> 查看详细用法）"]
     for key, title in CATEGORIES.items():
         names = [f"/{s.name}" for s in COMMANDS if s.category == key]
         lines.append(f"【{title}】" + " ".join(names))

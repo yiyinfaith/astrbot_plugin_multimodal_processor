@@ -67,7 +67,8 @@ def test_parse_command_longest_match_and_aliases():
     assert parse_command("视频转gif 12 480").args == ("12", "480")
     parsed = parse_command("外显取名  好耶 呀 ")
     assert parsed.spec.name == "外显取名" and parsed.rest == "好耶 呀"
-    for old in ("rename 好耶", "取名 好耶", "外显 好耶"):  # 只保留 /外显取名 一个名字
+    assert parse_command("多模态处理帮助 视频").spec.name == "多模态处理帮助"
+    for old in ("多模态帮助", "多模态", "rename 好耶", "取名 好耶", "外显 好耶"):  # 旧名都已停用
         assert parse_command(old) is None
     assert parse_command('图片转换 "png" 静态').args == ("png", "静态")
     assert parse_command("convert addblock 123").spec.name == "转换禁用"

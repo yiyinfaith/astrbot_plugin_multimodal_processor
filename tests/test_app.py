@@ -71,7 +71,7 @@ def test_match_mode_switch(tmp_path, make_app):
     run(on.handle_passive(chat))
     assert on.sender.calls == []
     # 帮助等不需要媒体的指令不参与无前缀匹配
-    helpme = FakeEvent([plain("多模态帮助")], message_str="多模态帮助", group_id="1", is_at_or_wake_command=False)
+    helpme = FakeEvent([plain("多模态处理帮助")], message_str="多模态处理帮助", group_id="1", is_at_or_wake_command=False)
     run(on.handle_passive(helpme))
     assert on.sender.calls == []
 
@@ -196,7 +196,7 @@ def test_ffmpeg_missing_is_reported_without_affecting_images(tmp_path, make_app)
     video = comp("Video", file=str(tmp_path / "v.mp4"), url="", path="")
     run(app.handle_command(FakeEvent([plain("/视频静音"), video], message_str="视频静音"), "视频静音"))
     assert "未找到 FFmpeg" in app.sender.texts()[0]
-    run(app.handle_command(FakeEvent([plain("/多模态帮助")], message_str="多模态帮助"), "多模态帮助"))
+    run(app.handle_command(FakeEvent([plain("/多模态处理帮助")], message_str="多模态处理帮助"), "多模态处理帮助"))
     assert "未检测到 FFmpeg" in app.sender.texts()[1]
     src = make_png(tmp_path / "a.png")
     run(app.handle_command(FakeEvent([plain("/反色"), image(src)], message_str="反色"), "反色"))
@@ -205,7 +205,7 @@ def test_ffmpeg_missing_is_reported_without_affecting_images(tmp_path, make_app)
 
 def test_help_queries(make_app):
     app = make_app()
-    run(app.handle_command(FakeEvent([plain("/多模态帮助 视频裁剪")], message_str="多模态帮助 视频裁剪"), "多模态帮助"))
+    run(app.handle_command(FakeEvent([plain("/多模态处理帮助 视频裁剪")], message_str="多模态处理帮助 视频裁剪"), "多模态处理帮助"))
     assert "/视频裁剪 <开始> <结束>" in app.sender.texts()[0]
-    run(app.handle_command(FakeEvent([plain("/多模态帮助 不存在")], message_str="多模态帮助 不存在"), "多模态帮助"))
+    run(app.handle_command(FakeEvent([plain("/多模态处理帮助 不存在")], message_str="多模态处理帮助 不存在"), "多模态处理帮助"))
     assert "没有找到" in app.sender.texts()[1]

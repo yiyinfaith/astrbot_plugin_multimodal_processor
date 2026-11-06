@@ -52,10 +52,10 @@ class MultimodalProcessor(Star):
         await self.app.handle_passive(event)
 
     # ------------------------------------------------------------ 帮助
-    @filter.command("多模态帮助", alias={"多模态"})
+    @filter.command("多模态处理帮助")
     async def cmd_help(self, event: AstrMessageEvent):
         """查看多模态处理器的指令列表或某个指令的用法"""
-        await self.app.handle_command(event, "多模态帮助")
+        await self.app.handle_command(event, "多模态处理帮助")
 
     # ------------------------------------------------------------ 图片 / GIF
     @filter.command("反色")

@@ -21,4 +21,4 @@ support_platforms:
   - wecom
   - weixin_oc
 help: |
-  发送 /多模态帮助 查看全部指令；插件介绍及使用教程见 README.md
+  发送 /多模态处理帮助 查看全部指令；插件介绍及使用教程见 README.md
