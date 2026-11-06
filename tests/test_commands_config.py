@@ -93,8 +93,8 @@ def test_media_commands_have_examples():
 def test_schema_matches_settings_dataclasses():
     schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
     names = setting_names()
-    assert list(schema) == ["general", "image", "text", "video", "audio"]
-    assert [schema[g]["description"] for g in schema] == ["通用设置", "图片", "文本", "视频", "音频"]
+    assert list(schema) == ["general", "text", "image", "video", "audio"]
+    assert [schema[g]["description"] for g in schema] == ["通用设置", "文本处理", "图片处理", "视频处理", "音频处理"]
     assert set(schema) == set(names)
     defaults = Settings()
     for group, mapping in names.items():

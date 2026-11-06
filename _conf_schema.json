@@ -73,8 +73,30 @@
       }
     }
   },
+  "text": {
+    "description": "文本处理",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用文本处理指令",
+        "type": "bool",
+        "default": true
+      },
+      "max_chars": {
+        "description": "最多处理字数",
+        "type": "int",
+        "default": 20000
+      },
+      "file_threshold": {
+        "description": "结果超过多少字改为文件发送",
+        "type": "int",
+        "default": 3000,
+        "hint": "平台不支持文件时会截断后以文字发送。"
+      }
+    }
+  },
   "image": {
-    "description": "图片",
+    "description": "图片处理",
     "type": "object",
     "items": {
       "enable": {
@@ -291,30 +313,8 @@
       }
     }
   },
-  "text": {
-    "description": "文本",
-    "type": "object",
-    "items": {
-      "enable": {
-        "description": "启用文本处理指令",
-        "type": "bool",
-        "default": true
-      },
-      "max_chars": {
-        "description": "最多处理字数",
-        "type": "int",
-        "default": 20000
-      },
-      "file_threshold": {
-        "description": "结果超过多少字改为文件发送",
-        "type": "int",
-        "default": 3000,
-        "hint": "平台不支持文件时会截断后以文字发送。"
-      }
-    }
-  },
   "video": {
-    "description": "视频",
+    "description": "视频处理",
     "type": "object",
     "items": {
       "enable": {
@@ -419,7 +419,7 @@
     }
   },
   "audio": {
-    "description": "音频",
+    "description": "音频处理",
     "type": "object",
     "items": {
       "enable": {
