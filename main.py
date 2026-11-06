@@ -1,297 +1,321 @@
+"""多模态处理器：AstrBot 本地图片 / GIF / 视频 / 音频处理与 QQ 图片保存、幻影坦克。
+
+AstrBot 按处理函数所在模块绑定插件，所以带装饰器的处理函数必须写在 main.py 的插件类里；
+它们只负责把指令名交给 core.app.MultimodalApp，具体逻辑在 core/、handlers/、processors/。
+指令名、别名、用法都定义在 core/commands.py，tests/test_commands.py 会核对两边是否一致。
+"""
+
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
-import re
-import shutil
-import uuid
 
-try:
-    import astrbot.api.message_components as Comp
-    from astrbot.api import logger
-    from astrbot.api.event import AstrMessageEvent, filter
-    from astrbot.api.event.filter import EventMessageType
-    from astrbot.api.star import Context, Star, register
-    from astrbot.core.utils.session_waiter import SessionFilter, SessionController, session_waiter
-except ImportError:  # pragma: no cover - allows pure processor tests without AstrBot installed
-    Comp = None; logger = None; AstrMessageEvent = object
-    filter = EventMessageType = Context = Star = register = None
-    SessionFilter = SessionController = session_waiter = None
+from astrbot.api import AstrBotConfig, logger
+from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.star import Context, Star
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path, get_astrbot_temp_path
 
-try:
-    from .core.commands import HELP, ParsedCommand, parse_command
-    from .core.config import Settings
-    from .core.media import MediaError, MediaTooLarge, MediaFile, avatar_media, resolve_media, sniff_kind
-    from .core.tasks import TaskManager
-    from .platform_ext.qq import QQCapability, UnsupportedPlatform
-    from .processors.audio.ffmpeg import AudioFFmpeg
-    from .processors.image.operations import image_info, process_image
-    from .processors.mirage.algorithm import generate_mirage
-    from .processors.video.ffmpeg import FFmpeg, FFmpegError
-except ImportError:  # direct import by lightweight plugin scanners/tests
-    from core.commands import HELP, ParsedCommand, parse_command
-    from core.config import Settings
-    from core.media import MediaError, MediaTooLarge, MediaFile, avatar_media, resolve_media, sniff_kind
-    from core.tasks import TaskManager
-    import importlib.util as _importlib_util
-    _qq_spec = _importlib_util.spec_from_file_location("_multimodal_qq", Path(__file__).with_name("platform_ext") / "qq.py")
-    _qq_module = _importlib_util.module_from_spec(_qq_spec); _qq_spec.loader.exec_module(_qq_module)
-    QQCapability, UnsupportedPlatform = _qq_module.QQCapability, _qq_module.UnsupportedPlatform
-    from processors.audio.ffmpeg import AudioFFmpeg
-    from processors.image.operations import image_info, process_image
-    from processors.mirage.algorithm import generate_mirage
-    from processors.video.ffmpeg import FFmpeg, FFmpegError
+from .core.app import MultimodalApp
+
+PLUGIN_NAME = "multimodal_processor"
 
 
-IMAGE_OPS = {"反色": "invert", "顺时针": "cw", "逆时针": "ccw", "左右翻转": "hflip", "上下翻转": "vflip",
-             "左对称": "left", "右对称": "right", "上对称": "top", "下对称": "bottom"}
-VIDEO_COMMANDS = {"视频转GIF", "GIF转视频", "视频转换", "视频压缩", "视频裁剪", "视频调速", "视频缩放", "视频旋转", "提取音频", "视频静音", "提取视频帧"}
-AUDIO_COMMANDS = {"音频转换", "音频转MP3", "音频裁剪", "音频调速", "音量", "音频压缩", "音频静音", "音频信息"}
+class MultimodalProcessor(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
+        super().__init__(context)
+        self.config = config
+        data_root = Path(get_astrbot_data_path())
+        self.app = MultimodalApp(
+            config,
+            data_root / "plugin_data" / PLUGIN_NAME,
+            astrbot_roots=[data_root, Path(get_astrbot_temp_path())],
+            wake_prefixes=self._wake_prefixes,
+        )
 
-
-def _num(value: str, default: float = 0) -> float:
-    try: return float(value)
-    except (TypeError, ValueError): return default
-
-
-def _size(value: str) -> tuple[int, int] | None:
-    match = re.fullmatch(r"(\d{1,5})[x×](\d{1,5})", value.lower())
-    return (int(match.group(1)), int(match.group(2))) if match else None
-
-
-def _safe_name(value: str, suffix: str) -> str:
-    value = re.sub(r"[\\/:*?\"<>|\x00\r\n]+", "_", value).strip(" .")[:80] or "图片"
-    if not value.lower().endswith(suffix.lower()): value += suffix
-    return value
-
-
-class _UserSessionFilter(SessionFilter if SessionFilter else object):
-    def __init__(self, session_id: str): self.session_id = session_id
-    def filter(self, event):
+    def _wake_prefixes(self) -> list[str]:
         try:
-            key = f"{event.get_session_id()}:{event.get_sender_id()}"
-            return self.session_id if key == self.session_id else ""
-        except Exception: return self.session_id
+            prefixes = self.context.get_config().get("wake_prefix", ["/"])
+            return [str(p) for p in prefixes if p] or ["/"]
+        except Exception:
+            return ["/"]
 
+    async def initialize(self):
+        await self.app.start()
+        logger.info("[多模态处理器] 已加载" + ("" if self.app.ffmpeg.available else "（未检测到 FFmpeg，音视频功能不可用）"))
 
-if register:
-    @register("multimodal_processor", "yiyinfaith", "多模态处理器", "1.0.0")
-    class MultimodalProcessor(Star):
-        def __init__(self, context: Context, config=None):
-            super().__init__(context)
-            self.settings = Settings.from_config(config or {})
-            self.raw_config = config or {}
-            root = Path("data")
-            if context and hasattr(context, "get_config"):
-                try:
-                    context_config = context.get_config() or {}
-                    if isinstance(context_config, dict) and context_config.get("data_dir"):
-                        root = Path(context_config["data_dir"])
-                except Exception:
-                    pass
-            self.tasks = TaskManager(root / "plugins" / "multimodal_processor" / "temp", self.settings.heavy_concurrency, self.settings.process_timeout)
-            self.tasks.cleanup_stale()
-            self.qq = QQCapability(self.raw_config, root / "plugins" / "multimodal_processor")
-            semaphore = asyncio.Semaphore(self.settings.heavy_concurrency)
-            self.ffmpeg = FFmpeg(self.settings.ffmpeg_path, self.settings.ffprobe_path, self.settings.process_timeout, semaphore)
-            self.audio = AudioFFmpeg(self.settings.ffmpeg_path, self.settings.ffprobe_path, self.settings.process_timeout, semaphore)
+    async def terminate(self):
+        await self.app.stop()
 
-        async def _plain(self, event, text: str):
-            if hasattr(event, "plain_result") and hasattr(event, "send"):
-                await event.send(event.plain_result(text))
-            elif hasattr(event, "set_result") and hasattr(event, "plain_result"):
-                event.set_result(event.plain_result(text))
+    # ------------------------------------------------------------ 无前缀关键词 / @某人 + 指令
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_message(self, event: AstrMessageEvent):
+        """精准关键词匹配，以及回复他人消息时 QQ 自动插入 @ 导致指令未被识别的情况"""
+        await self.app.handle_passive(event)
 
-        async def _send_paths(self, event, paths: list[Path], *, text: str | None = None):
-            chain = []
-            if text and Comp: chain.append(Comp.Plain(text))
-            for path in paths:
-                suffix = path.suffix.lower()
-                if not Comp: continue
-                if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}:
-                    chain.append(Comp.Image.fromFileSystem(str(path)))
-                elif suffix in {".mp4", ".webm", ".mkv", ".avi", ".mov"}:
-                    chain.append(Comp.Video.fromFileSystem(str(path)))
-                elif suffix in {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"}:
-                    chain.append(Comp.Record.fromFileSystem(str(path)))
-                else:
-                    chain.append(Comp.File(name=path.name, file=str(path)))
-            if hasattr(event, "send") and hasattr(event, "chain_result"):
-                await event.send(event.chain_result(chain))
-            elif hasattr(event, "set_result") and hasattr(event, "chain_result"):
-                event.set_result(event.chain_result(chain))
+    # ------------------------------------------------------------ 帮助
+    @filter.command("多模态帮助", alias={"多模态"})
+    async def cmd_help(self, event: AstrMessageEvent):
+        """查看多模态处理器的指令列表或某个指令的用法"""
+        await self.app.handle_command(event, "多模态帮助")
 
-        async def _resolve(self, event, work, *, kind="any", limit=1):
-            maximum = {"image": self.settings.max_image_mb, "video": self.settings.max_video_mb, "audio": self.settings.max_audio_mb}.get(kind, self.settings.max_image_mb)
-            files = await resolve_media(event, work, maximum * 1024 * 1024, kind=kind, limit=limit)
-            if not files and kind in {"image", "any"} and self.settings.enable_at_avatar:
-                files = await avatar_media(event, work, self.settings.max_image_mb * 1024 * 1024)
-            return files
+    # ------------------------------------------------------------ 图片 / GIF
+    @filter.command("反色")
+    async def cmd_invert(self, event: AstrMessageEvent):
+        """图片/GIF 反色"""
+        await self.app.handle_command(event, "反色")
 
-        async def _image_command(self, event, command: ParsedCommand):
-            if not self.settings.enable_image: return await self._plain(event, "图片功能已关闭")
-            async with self.tasks.task() as work:
-                files = await self._resolve(event, work, kind="image")
-                if not files: return await self._plain(event, "请引用、附带图片/GIF，或 @ 一位用户")
-                source = files[0].path; name = command.name
-                output = work / f"output-{uuid.uuid4().hex}"
-                kwargs = {"max_fps": self.settings.gif_max_fps, "allow_frame_drop": self.settings.gif_speed_allow_frame_drop}
-                if name in IMAGE_OPS:
-                    kwargs["operation"] = IMAGE_OPS[name]; output = output.with_suffix(source.suffix or ".png")
-                elif name == "调速":
-                    if not command.args: return await self._plain(event, "用法：/调速 2")
-                    kwargs["speed"] = _num(command.args[0], 1); output = output.with_suffix(".gif")
-                elif name == "图片转换":
-                    if not command.args: return await self._plain(event, "用法：/图片转换 webp [静态]")
-                    fmt = command.args[0].lower().lstrip("."); kwargs.update(output_format=fmt, keep_animation="静态" not in command.args)
-                    output = output.with_suffix("." + fmt)
-                elif name == "图片压缩":
-                    kwargs["quality"] = int(max(1, min(100, _num(command.args[0], 80) if command.args else 80))); output = output.with_suffix(source.suffix or ".jpg")
-                elif name == "图片缩放":
-                    parsed = _size(command.args[0]) if command.args else None
-                    if not parsed: return await self._plain(event, "用法：/图片缩放 800x600")
-                    kwargs.update(width=parsed[0], height=parsed[1]); output = output.with_suffix(source.suffix or ".png")
-                elif name == "图片裁剪":
-                    if len(command.args) != 1 or len(command.args[0].split(",")) != 4: return await self._plain(event, "用法：/图片裁剪 x,y,w,h")
-                    try: x,y,w,h = (int(v) for v in command.args[0].split(",")); kwargs["crop"] = (x,y,x+w,y+h)
-                    except ValueError: return await self._plain(event, "裁剪参数必须是整数")
-                    output = output.with_suffix(source.suffix or ".png")
-                elif name == "图片信息":
-                    info = await asyncio.to_thread(image_info, source); return await self._plain(event, "格式 {format}，尺寸 {width}×{height}，帧数 {frames}，大小 {size_bytes} 字节".format(**info))
-                else: return await self._plain(event, HELP)
-                await asyncio.to_thread(process_image, source, output, **kwargs)
-                await self._send_paths(event, [output])
-                if hasattr(event, "stop_event"): event.stop_event()
+    @filter.command("顺时针")
+    async def cmd_rotate_cw(self, event: AstrMessageEvent):
+        """图片/GIF 顺时针旋转 90°"""
+        await self.app.handle_command(event, "顺时针")
 
-        async def _qq_convert(self, event, command: ParsedCommand):
-            if not self.qq.is_qq_event(event): return await self._plain(event, "/转换 和 /rename 仅支持 QQ/NapCat/OneBot 平台")
-            group_id = getattr(event, "get_group_id", lambda: None)()
-            if self.qq.is_blocked(group_id): return await self._plain(event, "该群已禁止使用 QQ 图片保存，请私聊使用")
-            component = next((c for c in getattr(event, "get_messages", lambda: [])() if str(getattr(getattr(c,"type",None),"value",getattr(c,"type", ""))).lower() == "image"), None)
-            reply = next((c for c in getattr(event, "get_messages", lambda: [])() if str(getattr(getattr(c,"type",None),"value",getattr(c,"type", ""))).lower() == "reply"), None)
-            if component is None:
-                if reply and getattr(reply, "chain", None): component = next((c for c in reply.chain if str(getattr(getattr(c,"type",None),"value",getattr(c,"type", ""))).lower() == "image"), None)
-            if component is None and reply is None: return await self._plain(event, "请引用或直接发送 QQ 图片/GIF")
-            async with self.tasks.task() as work:
-                try:
-                    if component is not None:
-                        local = Path(await self.qq.get_image_path(event, component))
-                    else:
-                        local = Path(await self.qq.get_reply_image_path(event, reply.id))
-                    actual_kind, suffix = sniff_kind(local)
-                    target = work / ("qq-image" + suffix); shutil.copyfile(local, target)
-                    name = command.args[0] if command.name == "rename" and command.args else f"图片{suffix}"
-                    await self.qq.send_file(event, target, _safe_name(name, suffix))
-                except UnsupportedPlatform as exc: await self._plain(event, str(exc))
-                except Exception as exc: await self._plain(event, f"QQ 图片保存失败：{exc}")
-            if hasattr(event, "stop_event"): event.stop_event()
+    @filter.command("逆时针")
+    async def cmd_rotate_ccw(self, event: AstrMessageEvent):
+        """图片/GIF 逆时针旋转 90°"""
+        await self.app.handle_command(event, "逆时针")
 
-        async def _video_command(self, event, command: ParsedCommand):
-            if not self.settings.enable_video: return await self._plain(event, "视频功能已关闭")
-            async with self.tasks.task(heavy=True) as work:
-                files = await self._resolve(event, work, kind="video")
-                if not files: return await self._plain(event, "请附带或引用视频文件")
-                source = files[0].path; name = command.name; output = work / ("output" + ({"视频转GIF":".gif","GIF转视频":".mp4","提取音频":".mp3","提取视频帧":".png"}.get(name, source.suffix or ".mp4")))
-                try:
-                    probe = await self.ffmpeg.probe(source)
-                    duration = float((probe.get("format") or {}).get("duration") or 0)
-                    if duration > self.settings.max_duration: return await self._plain(event, f"视频时长超过限制（{self.settings.max_duration} 秒）")
-                    if name == "视频转GIF": output = await self.ffmpeg.video_to_gif(source, output, int(_num(command.args[0],15)) if command.args else 15, int(_num(command.args[1])) if len(command.args)>1 else None, _num(command.args[2]) if len(command.args)>2 else None)
-                    elif name == "GIF转视频": output = await self.ffmpeg.gif_to_video(source, output)
-                    elif name == "视频转换":
-                        fmt = (command.args[0].lower().lstrip(".") if command.args else "mp4"); output = output.with_suffix("."+fmt); output = await self.ffmpeg.convert(source, output, fmt)
-                    elif name == "视频压缩": output = await self.ffmpeg.compress(source, output, int(_num(command.args[0],28)) if command.args else 28)
-                    elif name == "视频裁剪" and len(command.args)>=2: output = await self.ffmpeg.trim(source, output, _num(command.args[0]), _num(command.args[1]))
-                    elif name == "视频调速" and command.args: output = await self.ffmpeg.speed(source, output, _num(command.args[0],1))
-                    elif name == "视频缩放" and command.args and _size(command.args[0]):
-                        w,h = _size(command.args[0]); output = await self.ffmpeg.scale(source, output, w, h)
-                    elif name == "视频旋转" and command.args: output = await self.ffmpeg.rotate(source, output, int(_num(command.args[0],90)))
-                    elif name == "提取音频": output = await self.ffmpeg.extract_audio(source, output)
-                    elif name == "视频静音": output = await self.ffmpeg.mute(source, output)
-                    elif name == "提取视频帧" and command.args: output = await self.ffmpeg.frame(source, output, _num(command.args[0]))
-                    else: return await self._plain(event, "参数不足，请发送 /多模态帮助 查看用法")
-                    await self._send_paths(event, [Path(output)])
-                except FFmpegError as exc: await self._plain(event, str(exc))
-            if hasattr(event, "stop_event"): event.stop_event()
+    @filter.command("左右翻转")
+    async def cmd_flip_h(self, event: AstrMessageEvent):
+        """图片/GIF 左右翻转"""
+        await self.app.handle_command(event, "左右翻转")
 
-        async def _audio_command(self, event, command: ParsedCommand):
-            if not self.settings.enable_audio: return await self._plain(event, "音频功能已关闭")
-            async with self.tasks.task(heavy=True) as work:
-                files = await self._resolve(event, work, kind="audio")
-                if not files: return await self._plain(event, "请附带或引用音频文件")
-                source = files[0].path; name = command.name; output = work / ("output" + ({"音频转MP3":".mp3"}.get(name, source.suffix or ".mp3")))
-                try:
-                    probe = await self.audio.probe(source)
-                    duration = float((probe.get("format") or {}).get("duration") or 0)
-                    if duration > self.settings.max_duration: return await self._plain(event, f"音频时长超过限制（{self.settings.max_duration} 秒）")
-                    if name in {"音频转换", "音频转MP3"}:
-                        fmt = "mp3" if name == "音频转MP3" else (command.args[0].lower().lstrip(".") if command.args else "mp3"); output = output.with_suffix("."+fmt); output = await self.audio.convert_audio(source, output)
-                    elif name == "音频裁剪" and len(command.args)>=2: output = await self.audio.trim_audio(source, output, _num(command.args[0]), _num(command.args[1]))
-                    elif name == "音频调速" and command.args: output = await self.audio.speed_audio(source, output, _num(command.args[0],1))
-                    elif name == "音量" and command.args: output = await self.audio.volume(source, output, _num(command.args[0],1))
-                    elif name == "音频压缩": output = await self.audio.compress_audio(source, output, command.args[0] if command.args else "128k")
-                    elif name == "音频静音" and len(command.args)>=2: output = await self.audio.mute_segment(source, output, _num(command.args[0]), _num(command.args[1]))
-                    elif name == "音频信息":
-                        info = await self.audio.info(source); return await self._plain(event, "格式 {format}，时长 {duration}s，码率 {bit_rate}，编码 {codec}".format(**info))
-                    else: return await self._plain(event, "参数不足，请发送 /多模态帮助 查看用法")
-                    await self._send_paths(event, [Path(output)])
-                except FFmpegError as exc: await self._plain(event, str(exc))
-            if hasattr(event, "stop_event"): event.stop_event()
+    @filter.command("上下翻转")
+    async def cmd_flip_v(self, event: AstrMessageEvent):
+        """图片/GIF 上下翻转"""
+        await self.app.handle_command(event, "上下翻转")
 
-        async def _mirage(self, event, mode: str):
-            if not self.settings.enable_mirage: return await self._plain(event, "幻影坦克功能已关闭")
-            if hasattr(event, "get_session_id"):
-                session_id = f"{event.get_session_id()}:{getattr(event, 'get_sender_id', lambda: '')()}"
-            else:
-                session_id = str(uuid.uuid4())
-            # Direct two-image form first.
-            async with self.tasks.task() as work:
-                files = await self._resolve(event, work, kind="image", limit=2)
-                if len(files) >= 2:
-                    out = work / "mirage.png"; await generate_mirage(files[0].path, files[1].path, out, mode, self.settings.mirage_a, self.settings.mirage_b, self.settings.mirage_w); await self._send_paths(event, [out]); return
-            if not session_waiter: return await self._plain(event, "当前 AstrBot 版本不支持分步会话，请同时附带两张图片")
-            session_dir = self.tasks.root / f"mirage-{uuid.uuid4().hex}"; session_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                await self._plain(event, f"请在 {self.settings.mirage_timeout} 秒内发送表图；发送‘取消’可中止")
-                @session_waiter(timeout=self.settings.mirage_timeout, record_history_chains=False)
-                async def waiter(controller, incoming):
-                    if str(getattr(incoming, "message_str", "")).strip() == "取消": controller.stop(); return
-                    received = await resolve_media(incoming, session_dir, self.settings.mirage_max_mb*1024*1024, kind="image")
-                    if not received: await self._plain(incoming, "请发送图片"); return
-                    if not hasattr(controller, "front"):
-                        controller.front = received[0].path; await self._plain(incoming, "收到表图，请发送里图"); controller.keep(self.settings.mirage_timeout, reset_timeout=True); return
-                    out = session_dir / "mirage.png"; await generate_mirage(controller.front, received[0].path, out, mode, self.settings.mirage_a, self.settings.mirage_b, self.settings.mirage_w); await self._send_paths(incoming, [out]); controller.stop()
-                await waiter(event, session_filter=_UserSessionFilter(session_id))
-            except TimeoutError: await self._plain(event, "幻影坦克会话已超时并取消")
-            finally: shutil.rmtree(session_dir, ignore_errors=True)
+    @filter.command("左对称")
+    async def cmd_mirror_left(self, event: AstrMessageEvent):
+        """保留左半边并镜像到右边"""
+        await self.app.handle_command(event, "左对称")
 
-        @filter.event_message_type(EventMessageType.ALL)
-        async def handle_all_commands(self, event: AstrMessageEvent):
-            command = parse_command(getattr(event, "message_str", ""), match_mode=self.settings.match_mode)
-            if not command: return
-            name = command.name
-            try:
-                if name in {"多模态帮助", "图片帮助", "帮助"}: await self._plain(event, HELP)
-                elif name in IMAGE_OPS or name in {"调速", "图片转换", "图片压缩", "图片缩放", "图片裁剪", "图片信息"}: await self._image_command(event, command)
-                elif name in {"转换", "rename"}: await self._qq_convert(event, command)
-                elif name in VIDEO_COMMANDS: await self._video_command(event, command)
-                elif name in AUDIO_COMMANDS: await self._audio_command(event, command)
-                elif name in {"幻影坦克", "彩色幻影坦克"}: await self._mirage(event, "color" if name.startswith("彩色") else "gray")
-                elif name == "convert" and command.args and command.args[0] in {"addblock", "delblock", "blocklist"}:
-                    if not getattr(event, "is_admin", lambda: False)(): return await self._plain(event, "需要管理员权限")
-                    op = command.args[0]
-                    if op == "blocklist": await self._plain(event, "禁用群：" + (", ".join(sorted(self.qq.blocked)) or "无"))
-                    elif len(command.args) > 1: await self._plain(event, "已" + ("添加" if op == "addblock" and self.qq.add_group(command.args[1]) else "移除" if op == "delblock" and self.qq.remove_group(command.args[1]) else "更新") + "群聊限制")
-            except (MediaError, MediaTooLarge) as exc: await self._plain(event, str(exc))
-            except Exception as exc:
-                if logger: logger.exception("multimodal processor command failed: %s", exc)
-                await self._plain(event, "处理失败，请检查输入文件或插件日志")
-            if hasattr(event, "stop_event") and name in (set(IMAGE_OPS) | {"调速", "图片转换", "图片压缩", "图片缩放", "图片裁剪", "图片信息", "转换", "rename"} | VIDEO_COMMANDS | AUDIO_COMMANDS | {"幻影坦克", "彩色幻影坦克"}): event.stop_event()
+    @filter.command("右对称")
+    async def cmd_mirror_right(self, event: AstrMessageEvent):
+        """保留右半边并镜像到左边"""
+        await self.app.handle_command(event, "右对称")
 
-        async def terminate(self):
-            self.tasks.cleanup_stale(0)
-else:
-    class MultimodalProcessor:  # pragma: no cover
-        """Import placeholder when AstrBot is not installed."""
-        pass
+    @filter.command("上对称")
+    async def cmd_mirror_top(self, event: AstrMessageEvent):
+        """保留上半边并镜像到下边"""
+        await self.app.handle_command(event, "上对称")
 
+    @filter.command("下对称")
+    async def cmd_mirror_bottom(self, event: AstrMessageEvent):
+        """保留下半边并镜像到上边"""
+        await self.app.handle_command(event, "下对称")
+
+    @filter.command("调速")
+    async def cmd_gif_speed(self, event: AstrMessageEvent):
+        """调整 GIF 播放速度，例：/调速 2"""
+        await self.app.handle_command(event, "调速")
+
+    @filter.command("图片转换")
+    async def cmd_image_convert(self, event: AstrMessageEvent):
+        """转换图片格式，例：/图片转换 webp"""
+        await self.app.handle_command(event, "图片转换")
+
+    @filter.command("图片压缩")
+    async def cmd_image_compress(self, event: AstrMessageEvent):
+        """压缩图片，例：/图片压缩 70"""
+        await self.app.handle_command(event, "图片压缩")
+
+    @filter.command("图片缩放")
+    async def cmd_image_resize(self, event: AstrMessageEvent):
+        """缩放图片，例：/图片缩放 800x600"""
+        await self.app.handle_command(event, "图片缩放")
+
+    @filter.command("图片裁剪")
+    async def cmd_image_crop(self, event: AstrMessageEvent):
+        """裁剪图片，例：/图片裁剪 1:1"""
+        await self.app.handle_command(event, "图片裁剪")
+
+    @filter.command("图片信息")
+    async def cmd_image_info(self, event: AstrMessageEvent):
+        """查看图片格式、尺寸、帧数"""
+        await self.app.handle_command(event, "图片信息")
+
+    @filter.command("GIF加速", alias={"加速"})
+    async def cmd_gif_faster(self, event: AstrMessageEvent):
+        """动图加速，例：/GIF加速 2"""
+        await self.app.handle_command(event, "GIF加速")
+
+    @filter.command("GIF减速", alias={"减速"})
+    async def cmd_gif_slower(self, event: AstrMessageEvent):
+        """动图减速，例：/GIF减速 2"""
+        await self.app.handle_command(event, "GIF减速")
+
+    @filter.command("精灵图转GIF", alias={"合成GIF", "合成1gif", "合成2gif"})
+    async def cmd_sprite_to_gif(self, event: AstrMessageEvent):
+        """精灵图按网格合成动图，例：/精灵图转GIF 4x4 0.1s"""
+        await self.app.handle_command(event, "精灵图转GIF")
+
+    @filter.command("多图合成GIF")
+    async def cmd_multi_to_gif(self, event: AstrMessageEvent):
+        """多张图片合成动图，例：/多图合成GIF 0.5"""
+        await self.app.handle_command(event, "多图合成GIF")
+
+    @filter.command("GIF分解")
+    async def cmd_gif_split(self, event: AstrMessageEvent):
+        """把动图拆成单独的帧"""
+        await self.app.handle_command(event, "GIF分解")
+
+    @filter.command("网格切图", alias={"切图", "网格裁剪"})
+    async def cmd_grid_split(self, event: AstrMessageEvent):
+        """把图片按行列切块，例：/网格切图 3x3"""
+        await self.app.handle_command(event, "网格切图")
+
+    @filter.command("图片转线稿", alias={"线稿"})
+    async def cmd_line_art(self, event: AstrMessageEvent):
+        """图片转铅笔素描线稿"""
+        await self.app.handle_command(event, "图片转线稿")
+
+    @filter.command("表情包做旧", alias={"做旧"})
+    async def cmd_age_meme(self, event: AstrMessageEvent):
+        """表情包做旧，例：/表情包做旧 10"""
+        await self.app.handle_command(event, "表情包做旧")
+
+    # ------------------------------------------------------------ QQ
+    @filter.command("转换")
+    async def cmd_qq_convert(self, event: AstrMessageEvent):
+        """把引用的 QQ 图片/GIF/表情重新发送为可下载文件"""
+        await self.app.handle_command(event, "转换")
+
+    @filter.command("rename", alias={"外显"})
+    async def cmd_qq_rename(self, event: AstrMessageEvent):
+        """修改图片在 QQ 中的外显文字，例：/rename 好耶"""
+        await self.app.handle_command(event, "rename")
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("转换禁用", alias={"convert addblock"})
+    async def cmd_qq_block(self, event: AstrMessageEvent):
+        """（管理员）禁止某个群使用 /转换"""
+        await self.app.handle_command(event, "转换禁用")
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("转换启用", alias={"convert delblock"})
+    async def cmd_qq_unblock(self, event: AstrMessageEvent):
+        """（管理员）恢复某个群的 /转换"""
+        await self.app.handle_command(event, "转换启用")
+
+    # ------------------------------------------------------------ 幻影坦克
+    @filter.command("幻影坦克")
+    async def cmd_mirage(self, event: AstrMessageEvent):
+        """生成黑白幻影坦克"""
+        await self.app.handle_command(event, "幻影坦克")
+
+    @filter.command("彩色幻影坦克", alias={"彩色幻影"})
+    async def cmd_mirage_color(self, event: AstrMessageEvent):
+        """生成彩色幻影坦克"""
+        await self.app.handle_command(event, "彩色幻影坦克")
+
+    # ------------------------------------------------------------ 光棱坦克
+    @filter.command("光棱坦克")
+    async def cmd_prism(self, event: AstrMessageEvent):
+        """生成光棱坦克（拉伸暗部色阶后显示里图）"""
+        await self.app.handle_command(event, "光棱坦克")
+
+    @filter.command("光棱显形", alias={"光棱坦克显形"})
+    async def cmd_prism_reveal(self, event: AstrMessageEvent):
+        """还原光棱坦克里隐藏的图片"""
+        await self.app.handle_command(event, "光棱显形")
+
+    # ------------------------------------------------------------ 视频
+    @filter.command("视频转GIF")
+    async def cmd_video_to_gif(self, event: AstrMessageEvent):
+        """视频转 GIF，例：/视频转GIF 12 480 5"""
+        await self.app.handle_command(event, "视频转GIF")
+
+    @filter.command("GIF转视频")
+    async def cmd_gif_to_video(self, event: AstrMessageEvent):
+        """GIF 转 MP4"""
+        await self.app.handle_command(event, "GIF转视频")
+
+    @filter.command("视频转换")
+    async def cmd_video_convert(self, event: AstrMessageEvent):
+        """转换视频格式，例：/视频转换 webm"""
+        await self.app.handle_command(event, "视频转换")
+
+    @filter.command("视频压缩")
+    async def cmd_video_compress(self, event: AstrMessageEvent):
+        """压缩视频，例：/视频压缩 低"""
+        await self.app.handle_command(event, "视频压缩")
+
+    @filter.command("视频裁剪")
+    async def cmd_video_trim(self, event: AstrMessageEvent):
+        """截取视频片段，例：/视频裁剪 5 12"""
+        await self.app.handle_command(event, "视频裁剪")
+
+    @filter.command("视频调速")
+    async def cmd_video_speed(self, event: AstrMessageEvent):
+        """视频变速，例：/视频调速 2"""
+        await self.app.handle_command(event, "视频调速")
+
+    @filter.command("视频缩放")
+    async def cmd_video_scale(self, event: AstrMessageEvent):
+        """调整视频分辨率，例：/视频缩放 720p"""
+        await self.app.handle_command(event, "视频缩放")
+
+    @filter.command("视频旋转")
+    async def cmd_video_rotate(self, event: AstrMessageEvent):
+        """旋转视频，例：/视频旋转 90"""
+        await self.app.handle_command(event, "视频旋转")
+
+    @filter.command("提取音频")
+    async def cmd_video_extract_audio(self, event: AstrMessageEvent):
+        """从视频中提取音轨，例：/提取音频 mp3"""
+        await self.app.handle_command(event, "提取音频")
+
+    @filter.command("视频静音")
+    async def cmd_video_mute(self, event: AstrMessageEvent):
+        """去掉视频的声音"""
+        await self.app.handle_command(event, "视频静音")
+
+    @filter.command("视频截图", alias={"提取视频帧", "视频截帧"})
+    async def cmd_video_frame(self, event: AstrMessageEvent):
+        """提取指定时间的画面，例：/视频截图 3"""
+        await self.app.handle_command(event, "视频截图")
+
+    @filter.command("视频信息")
+    async def cmd_video_info(self, event: AstrMessageEvent):
+        """查看视频时长、分辨率、编码"""
+        await self.app.handle_command(event, "视频信息")
+
+    # ------------------------------------------------------------ 音频
+    @filter.command("音频转换", alias={"音频转MP3", "音频转WAV", "音频转OGG", "音频转M4A", "音频转FLAC"})
+    async def cmd_audio_convert(self, event: AstrMessageEvent):
+        """转换音频格式，例：/音频转换 wav 或 /音频转MP3"""
+        await self.app.handle_command(event, "音频转换")
+
+    @filter.command("音频裁剪")
+    async def cmd_audio_trim(self, event: AstrMessageEvent):
+        """截取音频片段，例：/音频裁剪 10 25"""
+        await self.app.handle_command(event, "音频裁剪")
+
+    @filter.command("音频调速")
+    async def cmd_audio_speed(self, event: AstrMessageEvent):
+        """音频变速（默认保持音调），例：/音频调速 1.5"""
+        await self.app.handle_command(event, "音频调速")
+
+    @filter.command("音量", alias={"音频音量"})
+    async def cmd_audio_volume(self, event: AstrMessageEvent):
+        """调整音量，例：/音量 +6dB"""
+        await self.app.handle_command(event, "音量")
+
+    @filter.command("音频压缩")
+    async def cmd_audio_compress(self, event: AstrMessageEvent):
+        """按码率压缩音频，例：/音频压缩 64k"""
+        await self.app.handle_command(event, "音频压缩")
+
+    @filter.command("音频静音")
+    async def cmd_audio_mute(self, event: AstrMessageEvent):
+        """把指定时间段静音，例：/音频静音 3 5"""
+        await self.app.handle_command(event, "音频静音")
+
+    @filter.command("去除静音", alias={"音频去静音"})
+    async def cmd_audio_desilence(self, event: AstrMessageEvent):
+        """删除音频中的静音片段"""
+        await self.app.handle_command(event, "去除静音")
+
+    @filter.command("音频信息")
+    async def cmd_audio_info(self, event: AstrMessageEvent):
+        """查看音频格式、时长、码率"""
+        await self.app.handle_command(event, "音频信息")

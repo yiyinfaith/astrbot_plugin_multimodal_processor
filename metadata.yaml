@@ -1,7 +1,24 @@
 name: multimodal_processor
 display_name: 多模态处理器
-desc: 本地图片、GIF、视频、音频与幻影坦克处理插件
+desc: 本地多模态文件处理：图片/GIF 变换、格式转换与动图工具、QQ 图片保存与外显修改、幻影坦克与光棱坦克，以及基于 FFmpeg 的视频和音频处理
+short_desc: 图片/GIF/视频/音频本地处理、QQ 图片保存、幻影坦克、光棱坦克
 version: v1.0.0
-author: yiyinfaith
+author: 一吟Faith
+logo: logo.png
+category: 工具
 repo: https://github.com/yiyinfaith/astrbot_plugin_multimodal_processor
-license: AGPL-3.0
+astrbot_version: ">=4.20.0,<5"
+support_platforms:
+  - aiocqhttp
+  - telegram
+  - discord
+  - lark
+  - slack
+  - kook
+  - satori
+  - matrix
+  - mattermost
+  - wecom
+  - weixin_oc
+help: |
+  发送 /多模态帮助 查看全部指令；插件介绍及使用教程见 README.md

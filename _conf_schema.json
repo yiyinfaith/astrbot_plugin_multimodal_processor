@@ -1,28 +1,458 @@
 {
-  "enable_image": {"description": "启用图片与 GIF 功能", "type": "bool", "default": true},
-  "enable_video": {"description": "启用视频功能", "type": "bool", "default": true},
-  "enable_audio": {"description": "启用音频功能", "type": "bool", "default": true},
-  "enable_mirage": {"description": "启用幻影坦克", "type": "bool", "default": true},
-  "match_mode": {"description": "允许无斜杠精准关键词触发", "type": "bool", "default": false},
-  "enable_at_avatar": {"description": "允许 @用户获取 QQ 头像", "type": "bool", "default": true},
-  "max_image_mb": {"description": "图片/GIF大小上限(MB)", "type": "int", "default": 20},
-  "max_video_mb": {"description": "视频大小上限(MB)", "type": "int", "default": 200},
-  "max_audio_mb": {"description": "音频大小上限(MB)", "type": "int", "default": 50},
-  "max_duration": {"description": "媒体最长时长(秒)", "type": "int", "default": 600},
-  "process_timeout": {"description": "单任务超时(秒)", "type": "int", "default": 300},
-  "heavy_concurrency": {"description": "视频音频重任务并发数", "type": "int", "default": 1},
-  "ffmpeg_path": {"description": "FFmpeg可执行文件", "type": "string", "default": "ffmpeg"},
-  "ffprobe_path": {"description": "FFprobe可执行文件", "type": "string", "default": "ffprobe"},
-  "gif_max_fps": {"description": "GIF最高帧率", "type": "int", "default": 50},
-  "gif_max_width": {"description": "GIF最大宽度", "type": "int", "default": 1920},
-  "gif_speed_allow_frame_drop": {"description": "GIF超帧率时允许均匀丢帧", "type": "bool", "default": false},
-  "mirage_timeout": {"description": "幻影坦克会话超时(秒)", "type": "int", "default": 60},
-  "mirage_max_mb": {"description": "幻影坦克单图上限(MB)", "type": "int", "default": 10},
-  "mirage_a": {"description": "里图亮度缩放", "type": "float", "default": 0.5},
-  "mirage_b": {"description": "里图亮度偏移", "type": "float", "default": 20.0},
-  "mirage_w": {"description": "里图颜色权重", "type": "float", "default": 0.1},
-  "qq_private_file_first": {"description": "QQ转换优先私聊发送", "type": "bool", "default": true},
-  "qq_group_file_enabled": {"description": "允许群聊发送文件", "type": "bool", "default": false},
-  "qq_blocklist": {"description": "禁止转换功能的群号，逗号分隔", "type": "string", "default": ""},
-  "debug": {"description": "调试日志", "type": "bool", "default": false}
+  "general": {
+    "description": "通用设置",
+    "type": "object",
+    "items": {
+      "match_mode": {
+        "description": "精准关键词匹配（无需 / 前缀）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，引用媒体直接发送「反色」「调速 2」「视频转GIF」等即可触发；只有找到图片/视频/音频时才会响应，不会误触普通聊天。帮助、幻影坦克和管理指令始终需要前缀。"
+      },
+      "enable_at_avatar": {
+        "description": "允许 @用户 取 QQ 头像作为图片",
+        "type": "bool",
+        "default": true,
+        "hint": "例如「/反色 @某人」处理对方头像。仅 QQ（aiocqhttp）平台有效。"
+      },
+      "task_timeout": {
+        "description": "单个任务处理超时（秒）",
+        "type": "int",
+        "default": 180,
+        "hint": "超时后中止 FFmpeg 并清理临时文件。范围 10～3600。"
+      },
+      "heavy_concurrency": {
+        "description": "视频/音频任务并发数",
+        "type": "int",
+        "default": 1,
+        "hint": "同时运行的 FFmpeg 任务数，小内存 VPS 建议保持 1。"
+      },
+      "light_concurrency": {
+        "description": "图片任务并发数",
+        "type": "int",
+        "default": 2
+      },
+      "queue_limit": {
+        "description": "视频/音频最多排队任务数",
+        "type": "int",
+        "default": 5,
+        "hint": "排队已满时新任务会直接提示稍后再试。"
+      },
+      "per_user_limit": {
+        "description": "每个用户同时进行的任务数",
+        "type": "int",
+        "default": 2
+      },
+      "download_timeout": {
+        "description": "下载媒体超时（秒）",
+        "type": "int",
+        "default": 60
+      },
+      "allow_private_urls": {
+        "description": "允许下载内网地址的媒体",
+        "type": "bool",
+        "default": false,
+        "hint": "默认拦截 127.0.0.1、192.168.x.x 等内网和保留地址（含 DNS 解析结果与重定向），防止 SSRF。仅当协议端通过内网 HTTP 提供文件时才需要开启。"
+      },
+      "extra_local_roots": {
+        "description": "额外允许读取的本地目录",
+        "type": "list",
+        "default": [],
+        "hint": "媒体以本地路径提供时，只读取 AstrBot 数据目录、临时目录和这里列出的目录。协议端与 AstrBot 在同一台机器且图片缓存在其他目录时填写。"
+      },
+      "temp_expire_minutes": {
+        "description": "临时文件保底清理时间（分钟）",
+        "type": "int",
+        "default": 60,
+        "hint": "任务结束后临时文件会立即删除；这里是进程异常退出等情况下的兜底清理周期。"
+      },
+      "debug": {
+        "description": "调试日志",
+        "type": "bool",
+        "default": false
+      }
+    }
+  },
+  "image": {
+    "description": "图片 / GIF",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用图片与 GIF 功能",
+        "type": "bool",
+        "default": true
+      },
+      "max_mb": {
+        "description": "图片大小上限（MB）",
+        "type": "int",
+        "default": 20
+      },
+      "max_megapixels": {
+        "description": "单帧分辨率上限（百万像素）",
+        "type": "int",
+        "default": 40,
+        "hint": "例如 40 约等于 8000x5000。超过会直接拒绝，防止解码炸弹。"
+      },
+      "max_frames": {
+        "description": "动图最大帧数",
+        "type": "int",
+        "default": 600
+      },
+      "memory_mb": {
+        "description": "动图展开内存上限（MB）",
+        "type": "int",
+        "default": 512,
+        "hint": "按 宽×高×4×帧数 估算，超过则拒绝处理。"
+      },
+      "gif_max_fps": {
+        "description": "GIF 最高帧率",
+        "type": "int",
+        "default": 50,
+        "hint": "GIF 每帧至少 10ms，多数播放器对低于 20ms 的帧会降速，所以默认 50 FPS。"
+      },
+      "gif_speed_allow_frame_drop": {
+        "description": "GIF 调速允许丢帧",
+        "type": "bool",
+        "default": false,
+        "hint": "关闭时：倍率超过帧率上限会自动回退到能达到的最高倍率；开启时：合并连续的短帧（均匀丢帧）以达到目标倍率。"
+      },
+      "gif_max_side": {
+        "description": "生成 GIF 的最大宽度",
+        "type": "int",
+        "default": 1024,
+        "hint": "视频转 GIF 时宽度不会超过这个值。"
+      },
+      "default_quality": {
+        "description": "默认图片质量（1～100）",
+        "type": "int",
+        "default": 85,
+        "hint": "图片转换、图片压缩不填质量时使用。"
+      },
+      "make_format": {
+        "description": "合成动图的输出格式",
+        "type": "string",
+        "default": "gif",
+        "options": [
+          "gif",
+          "webp",
+          "apng"
+        ],
+        "labels": [
+          "GIF（兼容性最好）",
+          "动态 WebP（体积最小）",
+          "APNG（画质好、透明度完整）"
+        ],
+        "hint": "用于 /精灵图转GIF、/多图合成GIF。QQ 等聊天软件对 WebP/APNG 动图的支持不一，可能只显示第一帧。"
+      },
+      "split_max_frames": {
+        "description": "GIF 分解最多输出帧数",
+        "type": "int",
+        "default": 50,
+        "hint": "帧数更多时均匀抽取，首尾帧都保留。"
+      },
+      "multi_max_images": {
+        "description": "多图合成最多图片数",
+        "type": "int",
+        "default": 30
+      }
+    }
+  },
+  "qq": {
+    "description": "QQ 图片保存（仅 OneBot v11 / NapCat）",
+    "type": "object",
+    "items": {
+      "enable_convert": {
+        "description": "启用 /转换（保存 QQ 图片为文件）",
+        "type": "bool",
+        "default": true
+      },
+      "enable_rename": {
+        "description": "启用 /rename（修改图片外显文字）",
+        "type": "bool",
+        "default": true
+      },
+      "enable_mface": {
+        "description": "允许提取 QQ 官方表情（商城表情）",
+        "type": "bool",
+        "default": true
+      },
+      "convert_group_mode": {
+        "description": "群聊中 /转换 的发送方式",
+        "type": "string",
+        "default": "private",
+        "options": [
+          "private",
+          "group",
+          "private_then_group"
+        ],
+        "labels": [
+          "私聊发送给使用者",
+          "直接发到群里（会进群文件）",
+          "私聊优先，失败再发群里"
+        ],
+        "hint": "在群里发送文件会上传到群文件，默认私聊发送避免占用群文件。非好友时会尝试群临时会话。"
+      },
+      "blocked_groups": {
+        "description": "禁止使用 /转换 的群号",
+        "type": "list",
+        "default": [],
+        "hint": "也可以由管理员在群里发送 /转换禁用、/转换启用 管理，结果会写回这里。"
+      }
+    }
+  },
+  "mirage": {
+    "description": "幻影坦克",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用幻影坦克",
+        "type": "bool",
+        "default": true
+      },
+      "timeout": {
+        "description": "等待发图超时（秒）",
+        "type": "int",
+        "default": 60
+      },
+      "max_mb": {
+        "description": "单张图片大小上限（MB）",
+        "type": "int",
+        "default": 10
+      },
+      "max_side": {
+        "description": "输出最长边（像素）",
+        "type": "int",
+        "default": 2048,
+        "hint": "表图更大时会等比缩小；里图会按表图尺寸居中裁剪对齐。"
+      },
+      "gray_front_ratio": {
+        "description": "黑白模式：表图明暗范围",
+        "type": "float",
+        "default": 0.5,
+        "hint": "表图被压缩到亮区的比例（0.1～1）。越大表图对比度越高，里图越容易透出。"
+      },
+      "gray_back_ratio": {
+        "description": "黑白模式：里图明暗范围",
+        "type": "float",
+        "default": 0.5,
+        "hint": "里图被压缩到暗区的比例（0.1～1）。越大里图越亮越清楚，表图越容易发灰。"
+      },
+      "a": {
+        "description": "彩色模式：里图亮度系数",
+        "type": "float",
+        "default": 0.5,
+        "hint": "里图亮度的乘法缩放，值越大里图越亮。典型范围 0.3～1.5。"
+      },
+      "b": {
+        "description": "彩色模式：里图亮度偏移",
+        "type": "float",
+        "default": 20.0,
+        "hint": "里图亮度的整体偏移，增大会整体提亮里图并降低透明度。典型范围 5～40。"
+      },
+      "w": {
+        "description": "彩色模式：里图颜色权重",
+        "type": "float",
+        "default": 0.1,
+        "hint": "0 表示完全使用表图颜色，1 表示完全使用里图颜色。范围 0～1。"
+      }
+    }
+  },
+  "prism": {
+    "description": "光棱坦克",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用光棱坦克（制作与显形）",
+        "type": "bool",
+        "default": true
+      },
+      "timeout": {
+        "description": "等待发图超时（秒）",
+        "type": "int",
+        "default": 60
+      },
+      "max_mb": {
+        "description": "单张图片大小上限（MB）",
+        "type": "int",
+        "default": 10
+      },
+      "max_side": {
+        "description": "输出最长边（像素）",
+        "type": "int",
+        "default": 1200,
+        "hint": "以里图尺寸为准等比缩小；表图按里图尺寸居中裁剪对齐。"
+      },
+      "colored": {
+        "description": "表图保留颜色",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后表图转为黑白。指令里写「彩色」「黑白」可临时指定。"
+      },
+      "inner_limit": {
+        "description": "里图色阶端点",
+        "type": "int",
+        "default": 32,
+        "hint": "里图被压到 0～此值的暗区。越大显形越清楚，但平时越容易看出痕迹。必须小于表图色阶端点。"
+      },
+      "cover_limit": {
+        "description": "表图色阶端点",
+        "type": "int",
+        "default": 64,
+        "hint": "表图被压到 此值～255 的亮区。越小表图越接近原图，但与里图的区分度越低。"
+      },
+      "rate": {
+        "description": "隐藏率",
+        "type": "int",
+        "default": 2,
+        "hint": "每 N 个像素藏 1 个里图像素（2～8）。2 显形最清楚但表图偏暗，越大表图越自然、显形越模糊。"
+      }
+    }
+  },
+  "video": {
+    "description": "视频（需要 FFmpeg）",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用视频功能",
+        "type": "bool",
+        "default": true
+      },
+      "ffmpeg_path": {
+        "description": "FFmpeg 可执行文件",
+        "type": "string",
+        "default": "ffmpeg",
+        "hint": "填写命令名（从 PATH 查找）或完整路径，例如 /usr/bin/ffmpeg。音频功能共用此设置。"
+      },
+      "ffprobe_path": {
+        "description": "FFprobe 可执行文件",
+        "type": "string",
+        "default": "ffprobe"
+      },
+      "max_mb": {
+        "description": "视频大小上限（MB）",
+        "type": "int",
+        "default": 100
+      },
+      "max_duration": {
+        "description": "视频时长上限（秒）",
+        "type": "int",
+        "default": 300
+      },
+      "max_input_side": {
+        "description": "输入视频分辨率上限（最长边像素）",
+        "type": "int",
+        "default": 3840
+      },
+      "max_output_side": {
+        "description": "输出视频分辨率上限（最长边像素）",
+        "type": "int",
+        "default": 1920,
+        "hint": "视频缩放和 GIF 转视频不会超过这个尺寸。"
+      },
+      "default_crf": {
+        "description": "默认压缩质量（CRF 18～40）",
+        "type": "int",
+        "default": 28,
+        "hint": "H.264 CRF，越大体积越小、画质越低。23 接近原画质，28 是体积与画质的平衡点。"
+      },
+      "preset": {
+        "description": "编码速度预设",
+        "type": "string",
+        "default": "veryfast",
+        "options": [
+          "ultrafast",
+          "superfast",
+          "veryfast",
+          "faster",
+          "fast",
+          "medium",
+          "slow"
+        ],
+        "hint": "越快越省 CPU，同等画质下文件略大。VPS 推荐 veryfast。"
+      },
+      "threads": {
+        "description": "FFmpeg 线程数",
+        "type": "int",
+        "default": 2,
+        "hint": "限制单个任务占用的 CPU 核数，0 表示由 FFmpeg 自动决定。"
+      },
+      "memory_mb": {
+        "description": "单个 FFmpeg 进程内存上限（MB）",
+        "type": "int",
+        "default": 1536,
+        "hint": "仅 Linux 生效（RLIMIT_AS 虚拟内存上限）。0 表示不限制。"
+      },
+      "gif_fps": {
+        "description": "视频转 GIF 默认帧率",
+        "type": "int",
+        "default": 12
+      },
+      "gif_width": {
+        "description": "视频转 GIF 默认宽度",
+        "type": "int",
+        "default": 480
+      },
+      "gif_max_duration": {
+        "description": "视频转 GIF 最长时长（秒）",
+        "type": "int",
+        "default": 15
+      },
+      "send_mode": {
+        "description": "视频结果发送方式",
+        "type": "string",
+        "default": "auto",
+        "options": [
+          "auto",
+          "file"
+        ],
+        "labels": [
+          "视频消息（平台不支持时改为文件）",
+          "始终以文件发送"
+        ]
+      }
+    }
+  },
+  "audio": {
+    "description": "音频（需要 FFmpeg）",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用音频功能",
+        "type": "bool",
+        "default": true
+      },
+      "max_mb": {
+        "description": "音频大小上限（MB）",
+        "type": "int",
+        "default": 50
+      },
+      "max_duration": {
+        "description": "音频时长上限（秒）",
+        "type": "int",
+        "default": 1800
+      },
+      "default_bitrate": {
+        "description": "默认码率（kbps）",
+        "type": "int",
+        "default": 128,
+        "hint": "转换为 M4A / OGG / OPUS 时使用的码率；MP3 使用高质量 VBR。音频压缩不填码率时默认 64 kbps。"
+      },
+      "send_mode": {
+        "description": "音频结果发送方式",
+        "type": "string",
+        "default": "auto",
+        "options": [
+          "auto",
+          "media",
+          "file"
+        ],
+        "labels": [
+          "群聊发语音、私聊发文件",
+          "始终发语音",
+          "始终发文件"
+        ],
+        "hint": "语音消息会被平台重新编码，无法下载原格式；文件保留格式但在 QQ 群里会进入群文件。"
+      }
+    }
+  }
 }
