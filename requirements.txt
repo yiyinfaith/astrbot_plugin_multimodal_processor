@@ -1,8 +1,7 @@
 Pillow>=10.1.0
 numpy>=1.24.0
 aiohttp>=3.10.0
-# meme-generator 是可选依赖，默认不自动安装：不同版本可能与 AstrBot 依赖冲突，
-# pip 重装还可能覆盖用户在 site-packages/meme_generator/memes 中的自定义表情。
-# 请确认当前虚拟环境后手动取消其中一行的注释，只安装一个版本：
+# meme-generator 是可选依赖，默认不自动安装：不同版本可能与 AstrBot 依赖产生冲突，请用户自行进入AstrBot的虚拟环境手动pip安装meme-generator
+# pip 重装可能覆盖用户在 site-packages/meme_generator/memes 中的自定义表情。
 # meme-generator~=0.1.12  # Python 版（推荐）
 # meme-generator~=0.2.0   # Rust 版
