@@ -135,13 +135,13 @@ Requires-Dist: Pillow (>=10.0.0)
 不要执行普通的依赖升级，也不要为了满足旧上限降级 AstrBot 的 Pillow。安装完成后检查版本和加载数量：
 
 ```bash
-/root/yiyin/AstrBot/.venv/bin/python -c "import meme_generator; from meme_generator.version import __version__; print(__version__, len(meme_generator.get_memes()))"
+AstrBot/.venv/bin/python -c "import meme_generator; from meme_generator.version import __version__; print(__version__, len(meme_generator.get_memes()))"
 ```
 
 Rust 版按上游说明安装与你系统匹配的版本，例如：
 
 ```bash
-/root/yiyin/AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator>=0.2"
+AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator>=0.2"
 ```
 
 两个版本使用相同的发行名，不能同时安装。插件只调用已安装的 meme-generator，不会自动下载资源或修改其文件。
