@@ -147,6 +147,56 @@ class ImageSettings:
         return self.memory_mb * 1024 * 1024
 
 
+@dataclass(slots=True)
+class MemeSettings:
+    """meme-generator 运行时设置，不在主 requirements 中强制重装。"""
+
+    enable: bool = False
+    engine: str = "python"
+    need_prefix: bool = True
+    extra_prefix: str = ""
+    fuzzy_match: bool = False
+    compress_image: bool = True
+    check_resources: bool = False
+    timeout: int = 15
+    disabled_list: list[str] = field(default_factory=list)
+    group_disabled_map: list[dict] = field(default_factory=list)
+
+    @classmethod
+    def load(cls, raw: dict) -> "MemeSettings":
+        engine = _choice(raw.get("engine"), "python", {"python", "rust"})
+        groups = raw.get("group_disabled_map")
+        if isinstance(groups, dict):
+            groups = [{"scope": str(k), "memes": _str_list(v)} for k, v in groups.items() if isinstance(v, (list, tuple, set))]
+        elif isinstance(groups, list):
+            groups = [{"scope": str(item.get("scope")), "memes": _str_list(item.get("memes"))} for item in groups if isinstance(item, dict) and item.get("scope")]
+        else:
+            groups = []
+        return cls(
+            enable=_bool(raw.get("enable"), False),
+            engine=engine,
+            need_prefix=_bool(raw.get("need_prefix"), True),
+            extra_prefix=_str(raw.get("extra_prefix"), "") if raw.get("extra_prefix") else "",
+            fuzzy_match=_bool(raw.get("fuzzy_match"), False),
+            compress_image=_bool(raw.get("compress_image"), True),
+            check_resources=_bool(raw.get("check_resources"), False),
+            timeout=_int(raw.get("timeout"), 15, 1, 300),
+            disabled_list=_str_list(raw.get("disabled_list")),
+            group_disabled_map=groups,
+        )
+
+    def disabled_for(self, group_id: str | None) -> list[str]:
+        if not group_id:
+            return self.disabled_list
+        scope = f"group:{group_id}"
+        for item in self.group_disabled_map:
+            if item.get("scope") == scope:
+                return item.setdefault("memes", [])
+        item = {"scope": scope, "memes": []}
+        self.group_disabled_map.append(item)
+        return item["memes"]
+
+
 QQ_CONVERT_MODES = {"private", "group", "private_then_group"}
 
 
@@ -312,6 +362,7 @@ class Settings:
     prism: PrismSettings = field(default_factory=PrismSettings)
     video: VideoSettings = field(default_factory=VideoSettings)
     audio: AudioSettings = field(default_factory=AudioSettings)
+    meme: MemeSettings = field(default_factory=MemeSettings)
 
     @classmethod
     def load(cls, config: Any | None) -> "Settings":
@@ -324,19 +375,21 @@ class Settings:
                 return {}
             return value if isinstance(value, dict) else {}
 
+        image_raw = group("image")
         return cls(
             general=GeneralSettings.load({**group("general"), **{"text_" + k: v for k, v in group("text").items()}}),
-            image=ImageSettings.load({**_sub(group("image"), "basic"), **_sub(group("image"), "gif")}),
-            qq=QQSettings.load(_sub(group("image"), "qq")),
-            mirage=MirageSettings.load(_sub(group("image"), "mirage")),
-            prism=PrismSettings.load(_sub(group("image"), "prism")),
+            image=ImageSettings.load({**_sub(image_raw, "basic"), **_sub(image_raw, "gif")}),
+            qq=QQSettings.load(_sub(image_raw, "qq")),
+            mirage=MirageSettings.load(_sub(image_raw, "mirage")),
+            prism=PrismSettings.load(_sub(image_raw, "prism")),
             video=VideoSettings.load(group("video")),
             audio=AudioSettings.load(group("audio")),
+            meme=MemeSettings.load(_sub(image_raw, "meme")),
         )
 
 
 # 「图片处理」分组在配置界面里再分成几个小框：基础、动图、QQ、幻影坦克、光棱坦克
-IMAGE_BOXES = {"basic": "image", "gif": "image", "qq": "qq", "mirage": "mirage", "prism": "prism"}
+IMAGE_BOXES = {"basic": "image", "gif": "image", "qq": "qq", "mirage": "mirage", "prism": "prism", "meme": "meme"}
 GIF_FIELDS = {"gif_max_fps", "gif_speed_allow_frame_drop", "gif_max_side", "make_format", "split_max_frames", "multi_max_images"}
 
 
@@ -351,7 +404,7 @@ def setting_names() -> dict[str, dict[str, tuple[str, str]]]:
     for f in fields(ImageSettings):
         box = "gif" if f.name in GIF_FIELDS else "basic"
         image[f"{box}.{f.name}"] = ("image", f.name)
-    for box, cls in (("qq", QQSettings), ("mirage", MirageSettings), ("prism", PrismSettings)):
+    for box, cls in (("qq", QQSettings), ("mirage", MirageSettings), ("prism", PrismSettings), ("meme", MemeSettings)):
         image.update({f"{box}.{f.name}": (box, f.name) for f in fields(cls)})
     return {
         "general": {f.name: ("general", f.name) for f in fields(GeneralSettings) if not f.name.startswith("text_")},

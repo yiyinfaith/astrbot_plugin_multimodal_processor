@@ -106,7 +106,7 @@ def test_schema_matches_settings_dataclasses():
                 out[prefix + key] = item
         return out
 
-    assert [b["description"] for b in schema["image"]["items"].values()] == ["基础", "动图（GIF）", "QQ 图片保存（仅 OneBot v11）", "幻影坦克", "光棱坦克"]
+    assert [b["description"] for b in schema["image"]["items"].values()] == ["基础", "动图（GIF）", "Meme Generator 表情包（图片处理子功能）", "QQ 图片保存（仅 OneBot v11）", "幻影坦克", "光棱坦克"]
     for group, mapping in names.items():
         items = flatten(schema[group]["items"])
         assert set(items) == set(mapping), group

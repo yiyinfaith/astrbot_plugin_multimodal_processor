@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from . import av, helpinfo, image, mirage, qq, text
+from . import av, helpinfo, image, meme, mirage, qq, text
 
-HANDLERS = {**image.HANDLERS, **qq.HANDLERS, **mirage.HANDLERS, **av.HANDLERS, **text.HANDLERS, **helpinfo.HANDLERS}
+HANDLERS = {**image.HANDLERS, **meme.HANDLERS, **qq.HANDLERS, **mirage.HANDLERS, **av.HANDLERS, **text.HANDLERS, **helpinfo.HANDLERS}

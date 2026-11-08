@@ -24,6 +24,7 @@ from .ffmpeg import FFmpegRunner
 from .media import ANY, AUDIO, IMAGE, VIDEO, MediaFile, MediaRef, MediaResolver, at_targets, collect_refs, component_type, qq_avatar_url
 from .sender import Sender
 from .tasks import TaskManager, TaskSlot
+from ..processors.meme import MemeManager
 
 log = logging.getLogger("astrbot")
 
@@ -114,6 +115,7 @@ class MultimodalApp:
         )
         self._wake_prefixes = wake_prefixes or (lambda: ["/"])
         self.mirage_sessions: set[str] = set()
+        self.memes = MemeManager(self)
         from ..handlers import HANDLERS  # 延迟导入，避免循环依赖
 
         self.handlers: dict[str, Handler] = HANDLERS
@@ -126,8 +128,10 @@ class MultimodalApp:
         self.tasks.start()
         if (self.settings.video.enable or self.settings.audio.enable) and not self.ffmpeg.available:
             log.warning("[多模态处理器] 未找到 FFmpeg/FFprobe，视频与音频功能不可用，图片功能不受影响")
+        await self.memes.initialize()
 
     async def stop(self) -> None:
+        await self.memes.close()
         await self.tasks.stop()
 
     def debug(self, message: str) -> None:
@@ -186,6 +190,25 @@ class MultimodalApp:
         text, prefixed = self.command_text(event)
         parsed = parse_command(text)
         if parsed is None:
+            woken = bool(getattr(event, "is_at_or_wake_command", False))
+            meme_plain_allowed = self.settings.meme.enable and not self.settings.meme.need_prefix
+            if not (prefixed or woken or meme_plain_allowed):
+                return
+            try:
+                handled = await self.memes.handle_dynamic(event, text)
+            except (UserError, ToolMissing, UnsupportedPlatform, Busy) as exc:
+                await self._safe_reply(event, str(exc))
+                handled = True
+            except asyncio.TimeoutError:
+                await self._safe_reply(event, "表情包生成超时，已清理临时文件。")
+                handled = True
+            except Exception as exc:
+                log.exception(f"[多模态处理器] 表情包生成出错：{exc}")
+                await self._safe_reply(event, "表情包生成失败，请检查 meme-generator 版本和日志。")
+                handled = True
+            if handled:
+                try: event.stop_event()
+                except Exception: pass
             return
         if self._astrbot_would_match(event):
             return  # 交给 @filter.command 注册的处理函数
@@ -264,6 +287,22 @@ class MultimodalApp:
                 saver()
         except Exception as exc:
             log.warning(f"[多模态处理器] 保存禁用群列表失败：{exc}")
+
+    def save_meme_config(self) -> None:
+        """把表情包黑名单写回图片处理配置，不写入 meme-generator 的全局配置。"""
+        try:
+            section = self.config.get("image")
+            if not isinstance(section, dict):
+                section = {}; self.config["image"] = section
+            box = section.get("meme")
+            if not isinstance(box, dict):
+                box = {}; section["meme"] = box
+            box["disabled_list"] = list(self.settings.meme.disabled_list)
+            box["group_disabled_map"] = list(self.settings.meme.group_disabled_map)
+            saver = getattr(self.config, "save_config", None)
+            if callable(saver): saver()
+        except Exception as exc:
+            log.warning(f"[多模态处理器] 保存表情包黑名单失败：{exc}")
 
 
 def _is_admin(event: Any) -> bool:

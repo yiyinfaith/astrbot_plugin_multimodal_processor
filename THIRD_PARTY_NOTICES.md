@@ -61,3 +61,10 @@ SOFTWARE.
 - 参考：https://github.com/TankFactory/Mirage_Image 、https://github.com/TankFactory/Mirage_Decode （MIT）及其中引用的百度贴吧帖子「开个贴细说新式高科技坦克」
 - 使用范围：「灰度值分离 + 像素交错」的隐藏图原理。`processors/prism/algorithm.py` 为独立实现（NumPy 向量化），未复制上述仓库的代码；显形算法（自动阈值、归一化滤波补齐）为本插件自行设计。
 
+## meme-generator（可选运行时依赖）
+
+- 仓库：https://github.com/MemeCrafters/meme-generator
+- 许可证：MIT
+- 使用范围：本插件通过运行时适配器调用已安装的 Python 0.1.x 或 Rust 0.2.x API，提供关键词匹配、参数收集、表情包生成、详情预览和列表展示。
+- 本仓库不复制 meme-generator 的 `memes`、字体或资源文件，也不修改其 `tags.py`；用户放在 AstrBot 虚拟环境里的自定义表情会由运行时直接读取。安装版本和额外资源的版权、许可证及升级风险由使用者按上游文档处理。
+

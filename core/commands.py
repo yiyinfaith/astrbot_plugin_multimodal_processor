@@ -128,6 +128,14 @@ COMMANDS: tuple[CommandSpec, ...] = (
         "表情包做旧", "age_meme", "image", "模拟反复转发后发绿、变糊的老图效果，支持动图", "[次数 1~50，默认 5]",
         ("/表情包做旧", "/做旧 15"), "1～5 轻度，5～10 中度，10～20 重度，20 以上极限。", aliases={"做旧": ()},
     ),
+    # ---------------- Meme Generator（图片处理子功能） ----------------
+    CommandSpec("meme菜单", "meme_menu", "image", "查看表情包生成子功能的管理指令", examples=("/meme菜单",)),
+    CommandSpec("meme帮助", "meme_help", "image", "查看全部表情包关键词", examples=("/meme帮助",), aliases={"meme列表": (), "表情帮助": ()}),
+    CommandSpec("meme搜索", "meme_search", "image", "搜索表情包关键词", "<关键词片段>", examples=("/meme搜索 贴",)),
+    CommandSpec("meme详情", "meme_details", "image", "查看表情包参数和预览", "<关键词>", examples=("/meme详情 喜报",), aliases={"表情详情": (), "meme信息": ()}),
+    CommandSpec("禁用meme", "meme_disable", "image", "禁用本群的指定表情包关键词", "<关键词>", examples=("/禁用meme 喜报",), admin=True),
+    CommandSpec("启用meme", "meme_enable", "image", "启用本群的指定表情包关键词", "<关键词>", examples=("/启用meme 喜报",), admin=True),
+    CommandSpec("meme黑名单", "meme_blacklist", "image", "查看本群禁用的表情包关键词", examples=("/meme黑名单",)),
     # ---------------- QQ ----------------
     CommandSpec(
         "转换", "qq_convert", "qq", "把 QQ 图片/GIF/官方表情重新发送为可下载文件", "",

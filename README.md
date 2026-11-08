@@ -249,6 +249,61 @@ AstrBot 本地多模态文件处理插件：图片 / GIF 变换、格式转换�
 | | 默认码率 | 128 kbps | 转 M4A/OGG/OPUS 时使用 |
 | | 音频结果发送方式 | 群聊语音、私聊文件 | 也可固定为语音或文件 |
 
+## Meme Generator（图片处理子功能）
+
+默认关闭，打开配置「图片处理 → Meme Generator → 启用表情包生成」后，直接发送关键词即可生成；管理命令有 `/meme菜单`、`/meme帮助`、`/meme搜索 xxx`、`/meme详情 xxx`、`/禁用meme xxx`、`/启用meme xxx`、`/meme黑名单`。触发前缀、额外前缀、模糊匹配、压缩和超时都可配置。Python 版是默认引擎，Rust 版需把引擎切换为 Rust；插件会检测实际 API 版本，不会把两个版本同时导入。
+
+为避免覆盖 AstrBot 现有依赖和自定义表情素材，主 `requirements.txt` 不自动安装或升级 meme-generator。请在 AstrBot 使用的同一个虚拟环境里手动安装，并在安装前备份依赖清单：
+
+```bash
+# Python 版（0.1.x，推荐 0.1.14；与 AstrBot 依赖冲突时以 AstrBot 环境可运行为准）
+/root/yiyin/AstrBot/.venv/bin/python -m pip install "meme-generator>=0.1.14,<0.2.0"
+
+# Rust 版（0.2.x；需要与当前系统匹配的 wheel/动态库）
+/root/yiyin/AstrBot/.venv/bin/python -m pip install "meme-generator>=0.2.0,<0.3.0"
+```
+
+两个版本使用相同的发行名，不能并存；切换前请确认当前环境里的 `meme_generator.__version__`。`pip install` 可能重建 `site-packages/meme_generator/memes`，本插件不会执行这一步，也不会把这些素材复制到仓库。已经加入额外表情时，切换或重装前请先保存整个 `meme_generator/memes` 目录；本插件只读取运行环境中的现有目录。
+
+### 额外表情与自定义关键词
+
+Python 版：从 [meme-generator-contrib](https://github.com/MemeCrafters/meme-generator-contrib) 下载 `memes` 中需要的目录，复制到虚拟环境的 `site-packages/meme_generator/memes/`，重启 AstrBot。不要复制整个仓库覆盖已有目录；逐目录合并并保留自定义文件。某些额外表情依赖字体或资源，按 meme-generator 文档补齐字体后再测试 `/meme详情 关键词`。
+
+Rust 版：从 [meme-generator-contrib-rs Actions](https://github.com/MemeCrafters/meme-generator-contrib-rs/actions) 下载与 Python 版本和系统架构匹配的动态库，将 `.so`/`.dll` 放入 `$MEME_HOME/libraries`（默认 Linux 为 `/root/.meme_generator/libraries`），并在 meme-generator 的 `config.toml` 中启用：
+
+```toml
+[meme]
+load_builtin_memes = true
+load_external_memes = true
+meme_disabled_list = []
+
+[resource]
+resource_url = "https://cdn.jsdelivr.net/gh/MemeCrafters/meme-generator-rs@"
+download_fonts = true
+
+[font]
+use_local_fonts = true
+default_font_families = ["Noto Sans SC", "Noto Color Emoji"]
+
+[encoder]
+gif_max_frames = 200
+gif_encode_speed = 29
+```
+
+再把资源和字体放进 `$MEME_HOME/resources`，重启 AstrBot。Linux 缺图形库时可安装 `libegl1-mesa libgles2-mesa libgl1-mesa-dev`；Docker 可安装 `libgl1 libglib2.0-0`。中文乱码按 meme-generator 文档安装字体。
+
+### 版本冲突与兼容处理
+
+AstrBot 与 meme-generator 的依赖版本可能互斥。插件只在自己的适配层区分 Python 版 `Meme.__call__` 与 Rust 版 `Meme.generate`，不会修改 AstrBot 的依赖，也不会自动改写 meme-generator 的 `tags.py`。如果额外表情需要新增标签，请在对应 meme-generator 版本的 `tags.py` 中按其项目格式补充，并记录改动；升级包后需要重新应用。某个表情导入失败时，其他已加载表情仍可使用，日志会记录失败原因。
+
+### 原表情包生成器教程要点
+
+- 安装插件后先确认 Python 版本、Rust 版本和配置中的引擎一致，再重载插件。
+- `/meme帮助` 查看关键词；参数用空格分隔，例如 `喜报 nmsl`；引用消息中的图片和文本也会参与收集。
+- 可使用 `@QQ号` 获取头像；消息发送者和机器人头像会在图片不足时按需补充。
+- `check_resources` 默认关闭，适合已经拥有大量自定义资源的 VPS；首次全新安装且缺少资源时再开启，资源下载完成后建议关闭。
+- 生成超时、图片过大或单个 meme 失败只影响当前任务，临时目录会清理，不会让 AstrBot 崩溃。
+
 ## 资源与安全
 
 - 所有处理都在后台线程或 FFmpeg 子进程中进行，不阻塞 AstrBot；FFmpeg 只用参数列表启动，不经过 shell。
