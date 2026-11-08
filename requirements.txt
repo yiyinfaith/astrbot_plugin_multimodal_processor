@@ -4,5 +4,5 @@ aiohttp>=3.10.0
 # meme-generator默认不自动安装，因为可能与 AstrBot 依赖产生冲突，请用户自行进入AstrBot的虚拟环境手动pip安装meme-generator，并自行修改meme-generator包的依赖包版本以解决冲突。
 # 若用户在site-packages/meme_generator/memes中自行添加了表情包资源，请记得在site-packages/meme_generator/tags.py（如有）中添加对应tag，否则会报错。
 # pip 重装可能覆盖用户在 site-packages/meme_generator/memes 中的自定义表情。
-# meme-generator~=0.1.12  # Python 版（推荐）
+# meme-generator~=0.1.14  # Python 版（推荐）
 # meme-generator~=0.2.0   # Rust 版
