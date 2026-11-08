@@ -98,7 +98,9 @@ Windows 或 Docker 环境请在插件配置中填写可执行文件的完整路�
 
 ### 手动安装运行时
 
-meme-generator默认不自动安装，因为可能与 AstrBot 依赖产生冲突，请用户自行进入AstrBot的虚拟环境手动pip安装meme-generator，并自行修改meme-generator包的依赖包版本以解决冲突。若用户在site-packages/meme_generator/memes中自行添加了表情包资源，请记得在site-packages/meme_generator/tags.py（如有）中添加对应tag，否则会报错。
+meme-generator默认不自动安装，因为会与 AstrBot 依赖产生冲突，请用户自行进入AstrBot的虚拟环境手动pip安装meme-generator，并自行修改meme-generator包的依赖包版本以解决冲突。
+
+若用户在site-packages/meme_generator/memes中自行添加了表情包资源，请记得在site-packages/meme_generator/tags.py中添加对应tag，否则会报错。
 
 Python 版推荐 `0.1.14`：
 
