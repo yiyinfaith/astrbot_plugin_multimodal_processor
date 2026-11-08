@@ -86,7 +86,7 @@ Windows 或 Docker 环境请在插件配置中填写可执行文件的完整路�
 
 ## Meme Generator 表情包
 
-这是图片处理中的meme表情包生成功能，默认关闭。启用后会自动识别运行环境中的 meme-generator API，版本号只用于日志提示，识别依据是实际 API 能力，因此兼容不同的 0.1、0.2 及后续兼容版本。
+这是图片处理中的meme表情包生成功能，默认关闭。启用后会自动识别运行环境中的 meme-generator API，识别依据是实际 API 能力，本插件兼容python版和rust版的meme-generator包，0.1.x为python版，0.2.x为rust版。
 
 管理命令：
 
@@ -98,7 +98,7 @@ Windows 或 Docker 环境请在插件配置中填写可执行文件的完整路�
 
 ### 手动安装运行时
 
-主 `requirements.txt` 不安装 meme-generator。插件不会自动下载或升级它，请在 AstrBot 使用的虚拟环境中手动安装一个官方版本；插件会自动识别 Python 版或 Rust 版。
+meme-generator默认不自动安装，因为可能与 AstrBot 依赖产生冲突，请用户自行进入AstrBot的虚拟环境手动pip安装meme-generator，并自行修改meme-generator包的依赖包版本以解决冲突。若用户在site-packages/meme_generator/memes中自行添加了表情包资源，请记得在site-packages/meme_generator/tags.py（如有）中添加对应tag，否则会报错。
 
 Python 版推荐 `0.1.14`：
 
