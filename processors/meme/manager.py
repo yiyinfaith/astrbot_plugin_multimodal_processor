@@ -28,7 +28,7 @@ log = logging.getLogger("astrbot")
 @dataclass(slots=True)
 class MemeStatus:
     available: bool = False
-    engine: str = "python"
+    engine: str = "auto"
     version: str = ""
     reason: str = ""
 
@@ -37,7 +37,7 @@ class MemeManager:
     def __init__(self, app: Any) -> None:
         self.app = app
         self.settings = app.settings.meme
-        self.status = MemeStatus(engine=self.settings.engine)
+        self.status = MemeStatus()
         self.package: Any = None
         self.memes: list[Any] = []
         self._keywords: list[str] = []
@@ -56,34 +56,17 @@ class MemeManager:
             return
         self.package = meme_generator
         self.status.version = self._version(meme_generator)
-        is_rust = self._is_rust(meme_generator, self.status.version)
+        is_rust = self._is_rust(meme_generator)
         self.status.engine = "rust" if is_rust else "python"
-        if self.settings.engine != self.status.engine:
-            self.status.reason = f"配置要求 {self.settings.engine} 版，但当前加载的是 {self.status.version or '未知'}（{self.status.engine}）"
-            log.warning("[多模态处理器] %s", self.status.reason)
-            return
         try:
             self.memes = list(meme_generator.get_memes())
             self._rebuild_index()
             self.status.available = bool(self.memes)
             if not self.memes:
                 self.status.reason = "meme-generator 没有加载到任何表情包"
-            if self.settings.check_resources:
-                self._resource_task = asyncio.create_task(self._check_resources())
         except Exception as exc:
             self.status.reason = f"读取 meme-generator 表情包失败：{exc}"
             log.exception("[多模态处理器] meme-generator 初始化失败")
-
-    async def _check_resources(self) -> None:
-        try:
-            if self.status.engine == "python":
-                from meme_generator.download import check_resources  # type: ignore
-                await check_resources()
-            else:
-                from meme_generator.resources import check_resources_in_background  # type: ignore
-                await asyncio.to_thread(check_resources_in_background)
-        except Exception as exc:
-            log.warning("[多模态处理器] meme-generator 资源检查失败：%s", exc)
 
     async def close(self) -> None:
         if self._resource_task and not self._resource_task.done():
@@ -105,12 +88,20 @@ class MemeManager:
         return str(value or "")
 
     @staticmethod
-    def _is_rust(package: Any, version: str) -> bool:
-        try:
-            major, minor = (int(x) for x in version.split(".")[:2])
-            return major > 0 or minor >= 2
-        except (ValueError, IndexError):
-            return hasattr(package, "Image") and hasattr(package, "MemeSortBy")
+    def _is_rust(package: Any) -> bool:
+        """按 API 形状识别实现，不把版本号写死。
+
+        Python 版暴露 ``Meme.__call__``/``MemeParamsType``；Rust 版暴露
+        ``Image``、``MemeSortBy``，且 Meme 类提供 ``generate``。版本号只用于
+        日志显示，避免 0.1.12、0.1.14 或其他兼容发行版被误判。
+        """
+        meme_cls = getattr(package, "Meme", None)
+        return bool(
+            hasattr(package, "Image")
+            and hasattr(package, "MemeSortBy")
+            and meme_cls is not None
+            and hasattr(meme_cls, "generate")
+        )
 
     def _info(self, meme: Any) -> Any:
         return getattr(meme, "info", meme)
@@ -149,9 +140,6 @@ class MemeManager:
         if self.settings.extra_prefix:
             if not value.startswith(self.settings.extra_prefix): return None
             value = value[len(self.settings.extra_prefix):].strip()
-        if self.settings.fuzzy_match:
-            lowered = value.casefold()
-            return next((keyword for keyword in self._keywords if keyword.casefold() in lowered), None)
         tokens = value.split()
         for keyword in self._keywords:
             if keyword in tokens or value == keyword or value.startswith(keyword + " "):
@@ -161,6 +149,22 @@ class MemeManager:
     def search(self, text: str) -> list[str]:
         q = text.strip().casefold()
         return [x for x in self._keywords if q and q in x.casefold()]
+
+    def search_pairs(self, text: str) -> list[tuple[str, str]]:
+        q = text.strip().casefold()
+        if not q:
+            return []
+        result: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for keyword in self._keywords:
+            if q not in keyword.casefold():
+                continue
+            meme = self.find(keyword)
+            key = str(getattr(meme, "key", "") or getattr(getattr(meme, "info", None), "key", ""))
+            item = (keyword, key)
+            if item not in seen:
+                seen.add(item); result.append(item)
+        return result
 
     def disabled_for(self, event: Any) -> list[str]:
         try: group_id = str(event.get_group_id() or "")
@@ -302,5 +306,5 @@ class MemeManager:
             suffix = ".gif" if data[:6] in {b"GIF87a", b"GIF89a"} else ".png"
             output = slot.workdir / f"meme_{re.sub(r'[^a-zA-Z0-9_-]', '_', keyword)[:30]}{suffix}"
             output.write_bytes(data)
-            await self.app.sender.image(event, output, f"表情包：{keyword}")
+            await self.app.sender.image(event, output)
         return True

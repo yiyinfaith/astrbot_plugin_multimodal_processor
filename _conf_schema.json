@@ -189,12 +189,9 @@
         "type": "object",
         "items": {
           "enable": {"description": "启用表情包生成", "type": "bool", "default": false, "hint": "默认关闭；启用前请按 README 手动安装 meme-generator。"},
-          "engine": {"description": "运行版本", "type": "string", "default": "python", "options": ["python", "rust"], "labels": ["Python 版（默认）", "Rust 版"], "hint": "插件会检查已安装版本，避免自动 pip 重装覆盖自定义素材。"},
-          "need_prefix": {"description": "需要唤醒前缀或 @ 机器人", "type": "bool", "default": true},
+          "need_prefix": {"description": "需要唤醒前缀或 @ 机器人", "type": "bool", "default": false, "hint": "关闭后直接发送精确关键词即可触发。"},
           "extra_prefix": {"description": "额外前缀", "type": "string", "default": "", "hint": "填写后，触发词前必须再带此字符串。"},
-          "fuzzy_match": {"description": "模糊匹配触发词", "type": "bool", "default": false, "hint": "消息包含关键词即可触发，容易误触。"},
           "compress_image": {"description": "压缩静态生成图", "type": "bool", "default": true, "hint": "把超过 512px 的静态图缩小，GIF 保留原动画。"},
-          "check_resources": {"description": "启动时检查/下载资源", "type": "bool", "default": false, "hint": "关闭可保护自定义资源并缩短启动时间；缺资源时由 meme-generator 自己报错。"},
           "timeout": {"description": "单个表情包生成超时（秒）", "type": "int", "default": 15},
           "disabled_list": {"description": "全局禁用关键词", "type": "list", "default": []},
           "group_disabled_map": {"description": "按群隔离的禁用关键词", "type": "list", "default": [], "hint": "由禁用meme/启用meme指令维护。"}

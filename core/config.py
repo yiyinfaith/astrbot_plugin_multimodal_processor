@@ -152,19 +152,15 @@ class MemeSettings:
     """meme-generator 运行时设置，不在主 requirements 中强制重装。"""
 
     enable: bool = False
-    engine: str = "python"
-    need_prefix: bool = True
+    need_prefix: bool = False
     extra_prefix: str = ""
-    fuzzy_match: bool = False
     compress_image: bool = True
-    check_resources: bool = False
     timeout: int = 15
     disabled_list: list[str] = field(default_factory=list)
     group_disabled_map: list[dict] = field(default_factory=list)
 
     @classmethod
     def load(cls, raw: dict) -> "MemeSettings":
-        engine = _choice(raw.get("engine"), "python", {"python", "rust"})
         groups = raw.get("group_disabled_map")
         if isinstance(groups, dict):
             groups = [{"scope": str(k), "memes": _str_list(v)} for k, v in groups.items() if isinstance(v, (list, tuple, set))]
@@ -174,12 +170,9 @@ class MemeSettings:
             groups = []
         return cls(
             enable=_bool(raw.get("enable"), False),
-            engine=engine,
-            need_prefix=_bool(raw.get("need_prefix"), True),
+            need_prefix=_bool(raw.get("need_prefix"), False),
             extra_prefix=_str(raw.get("extra_prefix"), "") if raw.get("extra_prefix") else "",
-            fuzzy_match=_bool(raw.get("fuzzy_match"), False),
             compress_image=_bool(raw.get("compress_image"), True),
-            check_resources=_bool(raw.get("check_resources"), False),
             timeout=_int(raw.get("timeout"), 15, 1, 300),
             disabled_list=_str_list(raw.get("disabled_list")),
             group_disabled_map=groups,

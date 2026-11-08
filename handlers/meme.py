@@ -38,18 +38,21 @@ async def menu(inv: Invocation) -> bool:
 
 async def help_list(inv: Invocation) -> bool:
     manager = _require(inv)
-    keyword_lines = "、".join(manager.keywords)
-    if len(keyword_lines) > 7000:
-        keyword_lines = keyword_lines[:7000] + "……"
-    await inv.reply("可用表情包关键词（共 %d 个）：\n%s" % (len(manager.keywords), keyword_lines))
+    rendered = await manager.render_list()
+    if not rendered:
+        raise UserError("表情包列表渲染失败，请检查 meme-generator 的资源和字体")
+    async with inv.app.tasks.task(inv.user_key, heavy=False, label="meme-list") as slot:
+        output = slot.workdir / "meme-list.png"
+        output.write_bytes(rendered)
+        await inv.app.sender.image(inv.event, output)
     return True
 
 
 async def search(inv: Invocation) -> bool:
     manager = _require(inv)
     if not inv.args: raise UsageError("请填写要搜索的关键词片段")
-    result = manager.search(" ".join(inv.args))
-    await inv.reply("\n".join(f"{i}. {x}" for i, x in enumerate(result, 1)) if result else "没有找到匹配的表情包关键词")
+    result = manager.search_pairs(" ".join(inv.args))
+    await inv.reply("\n".join(f"{i}. {keyword}  ({key})" for i, (keyword, key) in enumerate(result, 1)) if result else "没有找到匹配的表情包关键词")
     return True
 
 
