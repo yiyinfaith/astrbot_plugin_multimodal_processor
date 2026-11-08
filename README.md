@@ -98,79 +98,53 @@ Windows 或 Docker 环境请在插件配置中填写可执行文件的完整路�
 
 ### 手动安装运行时
 
-主 `requirements.txt` 不安装 meme-generator，因为不同版本会与 AstrBot 依赖产生冲突，重装还可能覆盖自定义表情素材。请在 AstrBot 使用的虚拟环境里手动选择一种版本：
+主 `requirements.txt` 不安装 meme-generator。插件不会自动下载或升级它，请在 AstrBot 使用的虚拟环境中手动安装一个官方版本；插件会自动识别 Python 版或 Rust 版。
 
 Python 版推荐 `0.1.14`：
 
 ```bash
-/root/yiyin/AstrBot/.venv/bin/python -m pip install "meme-generator~=0.1.14"
+/root/yiyin/AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator==0.1.14"
 ```
 
-### 0.1.14 在 AstrBot 中的兼容修改
+### 0.1.14 在 AstrBot 中的最小兼容修改
 
-AstrBot 新版本通常要求 Pillow 11 或更高，而 meme-generator 0.1.14 的发行元数据仍写着 `Pillow (>=10.0.0,<11.0.0)`。直接执行普通 `pip install meme-generator==0.1.14` 可能降级 Pillow，影响 AstrBot；当前 AstrBot 环境中的 `pil-utils` 也可能写着 `Pillow (>=10.0.0,<12.0.0)`。在保留 AstrBot Pillow 的前提下，兼容安装需要完成以下修改：
+如果 AstrBot 使用 Pillow 11 或更高版本，安装后只需改两处发行元数据。先打开 `site-packages/meme_generator-0.1.14.dist-info/METADATA`，将：
 
-1. 停止 AstrBot，并备份整个 `site-packages/meme_generator/`、`meme_generator-0.1.14.dist-info/`、`pil_utils-*.dist-info/` 和自定义资源。
-2. 安装 0.1.14 代码时使用 `--no-deps`，不要让 pip 自动解析并降级 Pillow：
+```text
+Requires-Dist: Pillow (>=10.0.0,<11.0.0)
+```
 
-   ```bash
-   python -m pip install --no-deps --force-reinstall "meme-generator==0.1.14"
-   ```
+改为：
 
-3. 修改 `meme_generator-0.1.14.dist-info/METADATA` 中的依赖行：
+```text
+Requires-Dist: Pillow (>=10.0.0)
+```
 
-   ```text
-   Requires-Dist: Pillow (>=10.0.0,<11.0.0)
-   ```
+如果 `site-packages/pil_utils-*.dist-info/METADATA` 仍写着 `Pillow (>=10.0.0,<12.0.0)`，也改为：
 
-   改为：
+```text
+Requires-Dist: Pillow (>=10.0.0,<12.0.0)
+```
 
-   ```text
-   Requires-Dist: Pillow (>=10.0.0)
-   ```
+改为：
 
-4. 如果 `pil-utils` 的元数据仍限制 Pillow `<12`，并且 AstrBot 使用 Pillow 12，则把 `pil_utils-*.dist-info/METADATA` 中的：
+```text
+Requires-Dist: Pillow (>=10.0.0)
+```
 
-   ```text
-   Requires-Dist: Pillow (>=10.0.0,<12.0.0)
-   ```
-
-   改为：
-
-   ```text
-   Requires-Dist: Pillow (>=10.0.0)
-   ```
-
-   这两处是发行元数据兼容修正，不要修改 Pillow 本身，也不要为了满足旧上限降级 AstrBot 的 Pillow。修改后可以运行 `pip check`；如果只剩其他插件的独立冲突，应单独处理，不要回滚 Pillow。
-
-5. 0.1.14 wheel 自带官方 `meme_generator/tags.py`。如果你已有自定义 tag，不能直接覆盖当前文件；应以 0.1.14 文件为基础，把自定义 tag 合并回去。
-6. 不要删除或覆盖已有的 `meme_generator/memes/`。把自定义 meme 目录逐个合并回新版本；官方同名目录需要人工比较，保留自定义参数和资源。额外 meme 模块如果修改过参数范围、默认文本或导入路径，也要把这些修改合并回 0.1.14 对应模块。
-7. 如果此前为兼容 AstrBot 改过 `meme_generator/utils.py` 或其他 meme 模块，这些改动也要保留；升级核心代码不等于可以覆盖这些文件。
-8. 重启前验证：
-
-   ```bash
-   python -c "import meme_generator; from meme_generator.version import __version__; print(__version__, len(meme_generator.get_memes()))"
-   ```
-
-   版本应为 `0.1.14`，加载数量应不少于升级前；随后实际生成一个只需要文本的 meme 和一个需要图片的 meme，再启动 AstrBot。验证失败时，用第 1 步的备份恢复整个包目录。
-
-本项目的 VPS 升级就是按这套流程完成的：保留了全部 1003 个已加载表情、自定义 `tags.py` 和已修改的 meme 模块，放宽了两个相关发行元数据的 Pillow 上限，没有通过 pip 重新下载或覆盖表情资源。
-
-Rust 版使用与系统架构匹配的 `0.2.x` 或其他兼容版本：
+不要执行普通的依赖升级，也不要为了满足旧上限降级 AstrBot 的 Pillow。安装完成后检查版本和加载数量：
 
 ```bash
-/root/yiyin/AstrBot/.venv/bin/python -m pip install "meme-generator>=0.2.0,<0.3.0"
+/root/yiyin/AstrBot/.venv/bin/python -c "import meme_generator; from meme_generator.version import __version__; print(__version__, len(meme_generator.get_memes()))"
 ```
 
-两个版本使用相同的发行名，不能同时安装。插件不会自动下载字体、图片资源或修改 meme-generator 配置；资源缺失时会在生成日志中提示。切换版本前请保存 `site-packages/meme_generator/memes`，因为 pip 可能覆盖它。
+Rust 版按上游说明安装与你系统匹配的版本，例如：
 
-### 额外表情和标签
+```bash
+/root/yiyin/AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator>=0.2"
+```
 
-Python 版可以从 [meme-generator-contrib](https://github.com/MemeCrafters/meme-generator-contrib) 下载需要的 meme 目录，合并到虚拟环境的 `meme_generator/memes/`，不要用整个目录覆盖已有自定义文件。
-
-Rust 版需要从 [meme-generator-contrib-rs Actions](https://github.com/MemeCrafters/meme-generator-contrib-rs/actions) 下载匹配系统的动态库，放进 `$MEME_HOME/libraries`，并按上游文档准备 `$MEME_HOME/resources` 和字体。
-
-如果某些额外表情需要新增关键词，在对应版本的 `meme_generator/tags.py` 中按上游格式补充。插件只读取这些文件，不会自动修改它们；升级包后需要重新检查自定义改动。单个表情导入失败不会阻塞其他已加载表情。
+两个版本使用相同的发行名，不能同时安装。插件只调用已安装的 meme-generator，不会自动下载资源或修改其文件。
 
 ## 配置
 
