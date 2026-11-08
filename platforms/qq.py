@@ -7,9 +7,9 @@ QQ 官方表情（商城表情 / mface）在 AstrBot 的消息解析里会被丢
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from dataclasses import dataclass
-import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -17,9 +17,8 @@ import uuid
 
 from ..core import download as dl
 from ..core.errors import MediaError, MediaTooLarge, UnsupportedPlatform
+from ..core.log import log
 from ..core.media import MediaRef, component_type
-
-log = logging.getLogger("astrbot")
 
 PLATFORM = "aiocqhttp"
 BASE64_SEND_LIMIT = 30 * 1024 * 1024
@@ -218,7 +217,8 @@ async def _materialize(result: Any, dest: Path, max_bytes: int, allow_private: b
     if isinstance(encoded, str) and encoded:
         if len(encoded) * 3 // 4 > max_bytes:
             raise MediaTooLarge(f"文件超过大小限制（{max_bytes // 1024 // 1024} MB）")
-        dest.write_bytes(base64.b64decode(encoded))
+        data = await asyncio.to_thread(base64.b64decode, encoded)
+        await asyncio.to_thread(dest.write_bytes, data)
         return dest
     url = str(result.get("url") or "")
     if url.startswith(("http://", "https://")):
@@ -238,7 +238,8 @@ async def _materialize(result: Any, dest: Path, max_bytes: int, allow_private: b
         if path.is_file():
             if path.stat().st_size > max_bytes:
                 raise MediaTooLarge(f"文件超过大小限制（{max_bytes // 1024 // 1024} MB）")
-            dest.write_bytes(path.read_bytes())
+            data = await asyncio.to_thread(path.read_bytes)
+            await asyncio.to_thread(dest.write_bytes, data)
             return dest
     return None
 
@@ -297,9 +298,10 @@ async def platform_fetch(event: Any, ref: MediaRef, workdir: Path, max_bytes: in
     return None
 
 
-def _file_segment(path: Path, name: str, as_base64: bool) -> dict:
+async def _file_segment(path: Path, name: str, as_base64: bool) -> dict:
     if as_base64:
-        file_value = "base64://" + base64.b64encode(path.read_bytes()).decode()
+        encoded = await asyncio.to_thread(lambda: base64.b64encode(path.read_bytes()).decode())
+        file_value = "base64://" + encoded
     else:
         file_value = path.resolve().as_uri()
     return {"type": "file", "data": {"file": file_value, "name": name}}
@@ -322,20 +324,21 @@ async def send_file(event: Any, path: Path, name: str, target: str) -> None:
             await call(event, "send_private_msg", **params)
 
     try:
-        await _send(_file_segment(path, name, False))
+        await _send(await _file_segment(path, name, False))
         return
     except Exception as exc:
         if path.stat().st_size > BASE64_SEND_LIMIT:
             raise
         log.info(f"[多模态处理器] 以本地路径发送文件失败，改用 base64：{exc}")
-    await _send(_file_segment(path, name, True))
+    await _send(await _file_segment(path, name, True))
 
 
 async def send_image_with_summary(event: Any, path: Path, summary: str) -> None:
     """发送带外显文字（summary）的图片到当前会话。"""
+    encoded = await asyncio.to_thread(lambda: base64.b64encode(path.read_bytes()).decode())
     segment = {
         "type": "image",
-        "data": {"file": "base64://" + base64.b64encode(path.read_bytes()).decode(), "summary": summary, "sub_type": 0},
+        "data": {"file": "base64://" + encoded, "summary": summary, "sub_type": 0},
     }
     group_id = event.get_group_id()
     if group_id:

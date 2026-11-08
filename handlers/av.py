@@ -71,6 +71,8 @@ async def _probe_checked(inv: Invocation, media: MediaFile, kind: str) -> ProbeR
         if not probe.audio:
             raise MediaError("这个文件里没有音频")
         limit = inv.settings.audio.max_duration
+        if not probe.video and media.size > inv.settings.audio.max_bytes:
+            raise MediaTooLarge(f"音频文件超过大小限制（{inv.settings.audio.max_mb} MB）")
         if probe.video and media.size > inv.settings.video.max_bytes:
             raise MediaTooLarge(f"视频文件超过大小限制（{inv.settings.video.max_mb} MB）")
     if probe.duration and probe.duration > limit:

@@ -146,6 +146,22 @@ AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator>=0.2"
 
 两个版本使用相同的发行名，不能同时安装。插件只调用已安装的 meme-generator，不会自动下载资源或修改其文件。
 
+### 额外表情包仓库
+
+额外表情包不在本插件仓库中，需要按所用实现单独准备：
+
+- **Python 版**：从 [meme-generator-contrib](https://github.com/MemeCrafters/meme-generator-contrib) 下载需要的表情包目录，把选中的目录合并到虚拟环境的 `site-packages/meme_generator/memes/`。只合并目录，不要用整个 `memes` 目录覆盖已有内容。
+- **Rust 版**：从 [meme-generator-contrib-rs Actions](https://github.com/MemeCrafters/meme-generator-contrib-rs/actions) 下载与系统架构匹配的构建产物，按上游说明放入 `$MEME_HOME/libraries`，并准备 `$MEME_HOME/resources` 和字体。
+- **官方运行时**：[MemeCrafters/meme-generator](https://github.com/MemeCrafters/meme-generator) 是运行时源码和版本说明；Python 版与 Rust 版使用同一个发行名，不能同时安装。
+
+安装额外表情后运行：
+
+```bash
+/root/yiyin/AstrBot/.venv/bin/python -c "import meme_generator; print(len(meme_generator.get_memes()))"
+```
+
+如果表情目录已经加载但关键词找不到，在对应 Python 版的 `meme_generator/tags.py` 中按官方格式补充标签；Rust 版按上游资源和标签格式配置。不要覆盖已有的 `memes/`、`tags.py` 或字体目录。单个额外表情导入失败不会阻塞其他已加载表情，具体错误查看 AstrBot 日志。
+
 ## 配置
 
 配置分为“通用设置、文本处理、图片处理、视频处理、音频处理”。图片处理下包含基础、GIF、QQ 图片保存、幻影坦克、光棱坦克和 Meme Generator。

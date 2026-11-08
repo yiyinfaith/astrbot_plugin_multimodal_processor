@@ -24,3 +24,11 @@ def test_engine_detection_and_static_compression():
     compressed = MemeManager._compress(raw.getvalue())
     with Image.open(BytesIO(compressed)) as result:
         assert max(result.size) <= 512
+
+
+def test_output_suffix_follows_media_signature():
+    assert MemeManager._suffix(b"GIF89a") == ".gif"
+    assert MemeManager._suffix(b"\x89PNG\r\n\x1a\n") == ".png"
+    assert MemeManager._suffix(b"\xff\xd8\xff\xe0") == ".jpg"
+    assert MemeManager._suffix(b"RIFFxxxxWEBP") == ".webp"
+    assert MemeManager._suffix(b"unknown") == ".bin"

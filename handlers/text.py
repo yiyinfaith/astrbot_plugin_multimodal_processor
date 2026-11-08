@@ -36,6 +36,12 @@ async def _source_text(inv: Invocation, rest: str) -> str:
     for component in inv.event.get_messages():
         if component_type(component) == "reply":
             quoted = str(getattr(component, "message_str", "") or getattr(component, "text", "") or "")
+            if not quoted:
+                quoted = "".join(
+                    str(getattr(item, "text", "") or "")
+                    for item in (getattr(component, "chain", None) or [])
+                    if component_type(item) == "plain"
+                )
             if quoted.strip():
                 return quoted
     limit = inv.settings.general.text_max_chars * 4

@@ -42,6 +42,14 @@ def test_quoted_image_is_preferred(tmp_path, make_app):
     assert "30 x 10" in app.sender.texts()[0]
 
 
+def test_quoted_text_chain_is_used_for_text_commands(make_app):
+    app = make_app()
+    reply = comp("Reply", id="1", chain=[plain("引用的文字")])
+    event = FakeEvent([reply, plain("/转大写")], message_str="转大写")
+    run(app.handle_command(event, "转大写"))
+    assert app.sender.texts()[0] == "引用的文字".upper()
+
+
 def test_missing_media_explicit_vs_passive(tmp_path, make_app):
     app = make_app()
     explicit = FakeEvent([plain("/反色")], message_str="反色")

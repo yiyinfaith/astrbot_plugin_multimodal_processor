@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import logging
-
 from ..core.app import Invocation
 from ..core.errors import MediaError, MediaMissing, UserError, UsageError
 from ..core.formats import IMAGE, sniff_file
+from ..core.log import log
 from ..platforms import qq
-
-log = logging.getLogger("astrbot")
 
 _EXT_NAMES = {".gif": "GIF 动图", ".png": "PNG", ".jpg": "JPG", ".webp": "WEBP", ".bmp": "BMP"}
 

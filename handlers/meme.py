@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-import re
-
 from ..core.app import Invocation
-from ..core.errors import FeatureDisabled, ProcessingError, UsageError, UserError
+from ..core.errors import FeatureDisabled, UsageError, UserError
 
 
 def _require(inv: Invocation):

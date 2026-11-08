@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from functools import partial
-import logging
 from pathlib import Path
 import re
 import tempfile
@@ -25,8 +24,7 @@ from .media import ANY, AUDIO, IMAGE, VIDEO, MediaFile, MediaRef, MediaResolver,
 from .sender import Sender
 from .tasks import TaskManager, TaskSlot
 from ..processors.meme import MemeManager
-
-log = logging.getLogger("astrbot")
+from .log import log
 
 Handler = Callable[["Invocation"], Awaitable[bool]]
 

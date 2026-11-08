@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 from dataclasses import dataclass, field
@@ -214,12 +215,12 @@ class MediaResolver:
             if len(payload) * 3 // 4 > max_bytes:
                 raise MediaTooLarge(f"文件超过大小限制（{max_bytes // 1024 // 1024} MB）")
             try:
-                data = base64.b64decode(payload, validate=False)
+                data = await asyncio.to_thread(base64.b64decode, payload, validate=False)
             except (binascii.Error, ValueError) as exc:
                 raise MediaError("Base64 媒体数据无效") from exc
             if not data:
                 raise MediaError("媒体数据为空")
-            dest.write_bytes(data)
+            await asyncio.to_thread(dest.write_bytes, data)
             return len(data)
         parsed = urlparse(source)
         if parsed.scheme in {"http", "https"}:
@@ -230,10 +231,10 @@ class MediaResolver:
             local = unquote(parsed.path)
             if os.name == "nt" and re.match(r"^/[A-Za-z]:", local):
                 local = local[1:]
-            return self._copy_local(Path(local), dest, max_bytes)
+            return await asyncio.to_thread(self._copy_local, Path(local), dest, max_bytes)
         if parsed.scheme and len(parsed.scheme) > 1:
             raise MediaError(f"不支持的媒体地址类型：{parsed.scheme}")
-        return self._copy_local(Path(source), dest, max_bytes)
+        return await asyncio.to_thread(self._copy_local, Path(source), dest, max_bytes)
 
     async def fetch(self, event: Any, ref: MediaRef, workdir: Path, max_bytes: int) -> MediaFile:
         dest = workdir / f"input-{uuid.uuid4().hex[:12]}"
@@ -281,7 +282,7 @@ class MediaResolver:
             raise MediaError("无法解码 QQ 语音（SILK）") from exc
         target = workdir / f"voice-{uuid.uuid4().hex[:8]}.wav"
         try:
-            shutil.copyfile(converted, target)
+            await asyncio.to_thread(shutil.copyfile, converted, target)
         finally:
             try:
                 if converted.resolve().parent != workdir.resolve():

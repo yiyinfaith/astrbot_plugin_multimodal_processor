@@ -11,7 +11,6 @@ import asyncio
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-import logging
 from pathlib import Path
 import shutil
 import time
@@ -19,8 +18,7 @@ import uuid
 from typing import AsyncIterator, Awaitable, Callable
 
 from .errors import Busy
-
-log = logging.getLogger("astrbot")
+from .log import log
 
 TASK_PREFIX = "task-"
 
@@ -51,6 +49,7 @@ class TaskManager:
         self.per_user_limit = max(1, per_user_limit)
         self.expire_seconds = max(60, expire_seconds)
         self._waiting_heavy = 0
+        self._waiting_light = 0
         self._running_heavy = 0
         self._user_tasks: dict[str, int] = defaultdict(int)
         self._active: set[Path] = set()
@@ -95,8 +94,11 @@ class TaskManager:
             raise Busy(f"你已有 {self._user_tasks[user_key]} 个任务在处理中，请等它们完成后再试")
         if heavy and self.heavy_busy and self._waiting_heavy >= self.queue_limit:
             raise Busy("当前排队的任务太多，请稍后再试")
+        light_busy = self._light.locked()
+        if not heavy and light_busy and self._waiting_light >= self.queue_limit:
+            raise Busy("当前排队的图片任务太多，请稍后再试")
         self._user_tasks[user_key] += 1
-        queued = self._waiting_heavy if heavy and self.heavy_busy else 0
+        queued = self._waiting_heavy if heavy and self.heavy_busy else self._waiting_light if not heavy and light_busy else 0
         semaphore = self._heavy if heavy else self._light
         workdir: Path | None = None
         try:
@@ -113,7 +115,11 @@ class TaskManager:
                     self._waiting_heavy -= 1
                 self._running_heavy += 1
             else:
-                await semaphore.acquire()
+                self._waiting_light += 1
+                try:
+                    await semaphore.acquire()
+                finally:
+                    self._waiting_light -= 1
             try:
                 workdir = self.new_dir(label)
                 yield TaskSlot(workdir, queued)

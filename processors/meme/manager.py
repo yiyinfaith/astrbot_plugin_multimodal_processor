@@ -10,19 +10,16 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from io import BytesIO
-import logging
-from pathlib import Path
 import re
 from typing import Any
 
 from PIL import Image
 
-from ...core.errors import MediaMissing, ProcessingError, UserError
+from ...core.errors import ProcessingError, UserError
 from ...core.formats import IMAGE
-from ...core.media import IMAGE as IMAGE_REF, MediaRef, at_targets, collect_refs, qq_avatar_url, component_type
+from ...core.log import log
+from ...core.media import IMAGE as IMAGE_REF, at_targets, collect_refs, qq_avatar_url, component_type
 from ...platforms import qq
-
-log = logging.getLogger("astrbot")
 
 
 @dataclass(slots=True)
@@ -212,6 +209,19 @@ class MemeManager:
         error = getattr(data, "error", None) or getattr(data, "feedback", None)
         raise ProcessingError(str(error or data))
 
+    @staticmethod
+    def _suffix(data: bytes) -> str:
+        """Use the real media signature so QQ/platform MIME detection is correct."""
+        if data[:6] in {b"GIF87a", b"GIF89a"}:
+            return ".gif"
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return ".png"
+        if data.startswith(b"\xff\xd8\xff"):
+            return ".jpg"
+        if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            return ".webp"
+        return ".bin"
+
     async def generate(self, event: Any, keyword: str, slot: Any) -> bytes:
         meme = self.find(keyword)
         if not meme: raise UserError(f"未找到表情包关键词：{keyword}")
@@ -232,14 +242,16 @@ class MemeManager:
         if max_images:
             for ref in refs[:max_images]:
                 media = await self.app.resolver.fetch(event, ref, slot.workdir, self.app.settings.image.max_bytes)
-                if media.sniffed.kind == IMAGE: images.append(media.path.read_bytes())
+                if media.sniffed.kind == IMAGE:
+                    images.append(await asyncio.to_thread(media.path.read_bytes))
             if qq.is_onebot(event) and len(images) < max_images:
                 target_ids = at_targets(event)
                 for uid in [*target_ids, str(event.get_sender_id()), str(event.get_self_id())]:
                     if len(images) >= max_images: break
                     try:
                         media = await self.app.resolver.fetch_url(qq_avatar_url(uid), slot.workdir, self.app.settings.image.max_bytes, f"avatar_{uid}")
-                        if media.sniffed.kind == IMAGE: images.append(media.path.read_bytes())
+                        if media.sniffed.kind == IMAGE:
+                            images.append(await asyncio.to_thread(media.path.read_bytes))
                     except Exception: continue
         texts: list[str] = []
         for component in self._all_components(event):
@@ -303,7 +315,7 @@ class MemeManager:
         async with self.app.tasks.task(user_key, heavy=False, label="meme") as slot:
             data = await asyncio.wait_for(self.generate(event, keyword, slot), timeout=self.settings.timeout)
             if self.settings.compress_image: data = self._compress(data)
-            suffix = ".gif" if data[:6] in {b"GIF87a", b"GIF89a"} else ".png"
+            suffix = self._suffix(data)
             output = slot.workdir / f"meme_{re.sub(r'[^a-zA-Z0-9_-]', '_', keyword)[:30]}{suffix}"
             output.write_bytes(data)
             await self.app.sender.image(event, output)

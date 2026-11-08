@@ -27,10 +27,10 @@
         "default": 2
       },
       "queue_limit": {
-        "description": "视频/音频最多排队任务数",
+        "description": "各类任务最多排队数",
         "type": "int",
         "default": 5,
-        "hint": "排队已满时新任务会直接提示稍后再试。"
+        "hint": "视频、音频或图片任务排队已满时，新任务会直接提示稍后再试。"
       },
       "per_user_limit": {
         "description": "每个用户同时进行的任务数",

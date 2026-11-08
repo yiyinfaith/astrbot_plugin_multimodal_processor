@@ -6,13 +6,11 @@ base64、文件/视频交给协议端读取；WebChat 在 send 内复制文件�
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any
 
 from .errors import UnsupportedPlatform
-
-log = logging.getLogger("astrbot")
+from .log import log
 
 try:  # AstrBot 运行环境
     import astrbot.api.message_components as Comp

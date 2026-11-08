@@ -242,6 +242,26 @@ def test_heavy_tasks_are_serialized_and_queue_limited(tmp_path):
     assert peak == 1 and waits == [0]
 
 
+def test_light_tasks_are_queue_limited(tmp_path):
+    manager = TaskManager(tmp_path / "tasks", light_concurrency=1, queue_limit=0, per_user_limit=5)
+    entered = asyncio.Event()
+
+    async def first():
+        async with manager.task("a", heavy=False):
+            entered.set()
+            await asyncio.sleep(0.1)
+
+    async def go():
+        running = asyncio.create_task(first())
+        await entered.wait()
+        with pytest.raises(Busy):
+            async with manager.task("b", heavy=False):
+                pass
+        await running
+
+    run(go())
+
+
 def test_per_user_limit(tmp_path):
     manager = TaskManager(tmp_path / "tasks", per_user_limit=1, light_concurrency=4)
 
