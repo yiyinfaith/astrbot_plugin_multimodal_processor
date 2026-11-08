@@ -100,10 +100,10 @@ Windows 或 Docker 环境请在插件配置中填写可执行文件的完整路�
 
 主 `requirements.txt` 不安装 meme-generator，因为不同版本会与 AstrBot 依赖产生冲突，重装还可能覆盖自定义表情素材。请在 AstrBot 使用的虚拟环境里手动选择一种版本：
 
-Python 版推荐 `0.1.12`：
+Python 版推荐 `0.1.14`：
 
 ```bash
-/root/yiyin/AstrBot/.venv/bin/python -m pip install "meme-generator~=0.1.12"
+/root/yiyin/AstrBot/.venv/bin/python -m pip install "meme-generator~=0.1.14"
 ```
 
 Rust 版使用与系统架构匹配的 `0.2.x` 或其他兼容版本：

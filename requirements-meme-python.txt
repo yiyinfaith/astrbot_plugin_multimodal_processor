@@ -1,4 +1,4 @@
 # Optional; install this file manually in AstrBot's own virtual environment.
 # Do not run it on a host that already contains custom meme-generator assets
 # without backing up that directory first.
-meme-generator~=0.1.12
+meme-generator~=0.1.14
