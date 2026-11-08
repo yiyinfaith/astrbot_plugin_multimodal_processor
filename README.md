@@ -105,7 +105,7 @@ meme-generator默认不自动安装，因为会与 AstrBot 依赖产生冲突，
 Python 版推荐 `0.1.14`：
 
 ```bash
-/root/yiyin/AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator==0.1.14"
+AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator==0.1.14"
 ```
 
 ### 0.1.14 在 AstrBot 中的最小兼容修改
