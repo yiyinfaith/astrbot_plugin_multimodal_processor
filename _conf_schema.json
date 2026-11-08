@@ -185,7 +185,7 @@
         }
       },
       "meme": {
-        "description": "Meme Generator 表情包（图片处理子功能）",
+        "description": "Meme Generator 表情包",
         "type": "object",
         "items": {
           "enable": {"description": "启用表情包生成", "type": "bool", "default": false, "hint": "默认关闭；启用前请按 README 手动安装 meme-generator。"},
@@ -194,7 +194,7 @@
           "compress_image": {"description": "压缩静态生成图", "type": "bool", "default": true, "hint": "把超过 512px 的静态图缩小，GIF 保留原动画。"},
           "timeout": {"description": "单个表情包生成超时（秒）", "type": "int", "default": 15},
           "disabled_list": {"description": "全局禁用关键词", "type": "list", "default": []},
-          "group_disabled_map": {"description": "按群隔离的禁用关键词", "type": "list", "default": [], "hint": "由禁用meme/启用meme指令维护。"}
+          "group_disabled_map": {"description": "按群隔离的禁用关键词", "type": "list", "default": [], "hint": "在配置界面中按群填写禁用关键词。"}
         }
       },
       "qq": {

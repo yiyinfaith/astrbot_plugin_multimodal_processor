@@ -174,13 +174,9 @@ class MultimodalProcessor(Star):
         await self.app.handle_command(event, "表情包做旧")
 
     # ------------------------------------------------------------ Meme Generator（图片处理子功能）
-    @filter.command("meme菜单")
-    async def cmd_meme_menu(self, event: AstrMessageEvent):
-        await self.app.handle_command(event, "meme菜单")
-
-    @filter.command("meme帮助", alias={"meme列表", "表情帮助"})
+    @filter.command("meme列表", alias={"meme帮助", "meme菜单", "表情帮助"})
     async def cmd_meme_help(self, event: AstrMessageEvent):
-        await self.app.handle_command(event, "meme帮助")
+        await self.app.handle_command(event, "meme列表")
 
     @filter.command("meme搜索")
     async def cmd_meme_search(self, event: AstrMessageEvent):
@@ -190,19 +186,6 @@ class MultimodalProcessor(Star):
     async def cmd_meme_details(self, event: AstrMessageEvent):
         await self.app.handle_command(event, "meme详情")
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("禁用meme")
-    async def cmd_meme_disable(self, event: AstrMessageEvent):
-        await self.app.handle_command(event, "禁用meme")
-
-    @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("启用meme")
-    async def cmd_meme_enable(self, event: AstrMessageEvent):
-        await self.app.handle_command(event, "启用meme")
-
-    @filter.command("meme黑名单")
-    async def cmd_meme_blacklist(self, event: AstrMessageEvent):
-        await self.app.handle_command(event, "meme黑名单")
 
     # ------------------------------------------------------------ QQ
     @filter.command("转换")
