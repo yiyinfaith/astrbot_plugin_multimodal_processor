@@ -211,7 +211,7 @@ class MemeManager:
     async def generate(self, event: Any, keyword: str, slot: Any) -> bytes:
         meme = self.find(keyword)
         if not meme: raise UserError(f"未找到表情包关键词：{keyword}")
-        images, texts, options = await self._collect_params(event, meme, slot)
+        images, texts, options = await self._collect_params(event, meme, keyword, slot)
         if self.status.engine == "python":
             result = await asyncio.to_thread(meme, images=images, texts=texts, args=options)
         else:
@@ -220,7 +220,7 @@ class MemeManager:
             result = await asyncio.to_thread(meme.generate, wrapped, texts, options)
         return self._as_bytes(result)
 
-    async def _collect_params(self, event: Any, meme: Any, slot: Any) -> tuple[list[bytes], list[str], dict[str, Any]]:
+    async def _collect_params(self, event: Any, meme: Any, keyword: str, slot: Any) -> tuple[list[bytes], list[str], dict[str, Any]]:
         params = self._params(meme)
         max_images = int(getattr(params, "max_images", 0))
         images: list[bytes] = []
