@@ -205,11 +205,13 @@ sed -i -E 's/^(Requires-Dist: Pillow \(>=10\.0\.0),<1[12]\.0\.0\)/\1)/' .venv/li
 
 除上表的官方仓库外，还可以从以下社区仓库获取 Python 版表情：
 
+- [meme-generator-contrib](https://github.com/MemeCrafters/meme-generator-contrib)
 - [anyliew/meme_emoji](https://github.com/anyliew/meme_emoji)
 - [anyliew/crazy_emoji](https://github.com/anyliew/crazy_emoji)
 - [jinjiao007/meme-generator-jj](https://github.com/jinjiao007/meme-generator-jj)
 - [LRZ9712/tudou-meme](https://github.com/LRZ9712/tudou-meme)
 - [xiaoruange39/xiaoruan-meme](https://github.com/xiaoruange39/xiaoruan-meme)
+- [Memes02/meme-generator](https://github.com/Memes02/meme-generator)
 
 **部分表情包文件有误或相互冲突，需酌情修改后使用。**
 
