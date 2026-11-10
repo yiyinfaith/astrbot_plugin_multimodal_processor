@@ -189,12 +189,12 @@
         "type": "object",
         "items": {
           "enable": {"description": "启用表情包生成", "type": "bool", "default": false, "hint": "默认关闭；启用前请按 README 手动安装 meme-generator。"},
-          "need_prefix": {"description": "需要唤醒前缀或 @ 机器人", "type": "bool", "default": false, "hint": "关闭后直接发送精确关键词即可触发。"},
+          "need_prefix": {"description": "需要唤醒前缀或 @ 机器人", "type": "bool", "default": false, "hint": "关闭后消息以关键词开头即可触发，例如「喜报 好消息」。"},
           "extra_prefix": {"description": "额外前缀", "type": "string", "default": "", "hint": "填写后，触发词前必须再带此字符串。"},
           "compress_image": {"description": "压缩静态生成图", "type": "bool", "default": true, "hint": "把超过 512px 的静态图缩小，GIF 保留原动画。"},
           "timeout": {"description": "单个表情包生成超时（秒）", "type": "int", "default": 15},
-          "disabled_list": {"description": "全局禁用关键词", "type": "list", "default": []},
-          "group_disabled_map": {"description": "按群隔离的禁用关键词", "type": "list", "default": [], "hint": "在配置界面中按群填写禁用关键词。"}
+          "disabled_list": {"description": "全局禁用关键词", "type": "list", "default": [], "hint": "填写触发关键词或英文文件夹名，该表情的所有关键词都会被禁用。"},
+          "group_disabled_map": {"description": "按群隔离的禁用关键词", "type": "list", "default": [], "hint": "每项一个群，格式：群号:关键词1,关键词2，例如 123456:摸,喜报。在全局禁用之外叠加生效。"}
         }
       },
       "qq": {

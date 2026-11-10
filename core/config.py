@@ -161,13 +161,6 @@ class MemeSettings:
 
     @classmethod
     def load(cls, raw: dict) -> "MemeSettings":
-        groups = raw.get("group_disabled_map")
-        if isinstance(groups, dict):
-            groups = [{"scope": str(k), "memes": _str_list(v)} for k, v in groups.items() if isinstance(v, (list, tuple, set))]
-        elif isinstance(groups, list):
-            groups = [{"scope": str(item.get("scope")), "memes": _str_list(item.get("memes"))} for item in groups if isinstance(item, dict) and item.get("scope")]
-        else:
-            groups = []
         return cls(
             enable=_bool(raw.get("enable"), False),
             need_prefix=_bool(raw.get("need_prefix"), False),
@@ -175,19 +168,38 @@ class MemeSettings:
             compress_image=_bool(raw.get("compress_image"), True),
             timeout=_int(raw.get("timeout"), 15, 1, 300),
             disabled_list=_str_list(raw.get("disabled_list")),
-            group_disabled_map=groups,
+            group_disabled_map=_group_rules(raw.get("group_disabled_map")),
         )
 
     def disabled_for(self, group_id: str | None) -> list[str]:
-        if not group_id:
-            return self.disabled_list
-        scope = f"group:{group_id}"
-        for item in self.group_disabled_map:
-            if item.get("scope") == scope:
-                return item.setdefault("memes", [])
-        item = {"scope": scope, "memes": []}
-        self.group_disabled_map.append(item)
-        return item["memes"]
+        """全局禁用 + 该群禁用的关键词。"""
+        result = list(self.disabled_list)
+        if group_id:
+            for item in self.group_disabled_map:
+                if item["scope"] == group_id:
+                    result.extend(m for m in item["memes"] if m not in result)
+        return result
+
+
+def _group_rules(value: Any) -> list[dict]:
+    """配置界面的列表项是字符串「群号:关键词1,关键词2」；也兼容字典写法。"""
+    pairs: list[tuple[Any, Any]] = []
+    if isinstance(value, dict):
+        pairs = list(value.items())
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            if isinstance(item, dict):
+                pairs.append((item.get("scope"), item.get("memes")))
+            elif isinstance(item, str):
+                scope, _, memes = item.replace("：", ":").strip().removeprefix("group:").partition(":")
+                pairs.append((scope, memes))
+    rules: list[dict] = []
+    for scope, memes in pairs:
+        group_id = str(scope or "").strip().removeprefix("group:")
+        keywords = _str_list(memes)
+        if group_id and keywords:
+            rules.append({"scope": group_id, "memes": keywords})
+    return rules
 
 
 QQ_CONVERT_MODES = {"private", "group", "private_then_group"}

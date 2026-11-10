@@ -68,3 +68,16 @@ def test_text_commands_end_to_end(make_app):
     off = make_app({"text": {"enable": False}})
     run(off.handle_command(FakeEvent([plain("/转大写 a")], message_str="转大写 a"), "转大写"))
     assert "文本功能已在配置中关闭" in off.sender.texts()[0]
+
+
+def test_sort_lines_with_superscript_digit():
+    from mmp.processors.text import ops
+
+    assert ops.sort_lines("²\n1") == "1\n²"
+
+
+def test_option_word_of_other_command_is_kept(make_app):
+    app = make_app()
+    text = "/MD列表 倒序\n第一"
+    run(app.handle_command(FakeEvent([plain(text)], message_str=text[1:]), "MD列表"))
+    assert app.sender.texts() == ["- 倒序\n- 第一"]

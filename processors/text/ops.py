@@ -167,7 +167,7 @@ def dedupe_lines(text: str) -> tuple[str, int]:
 
 def sort_lines(text: str, reverse: bool = False) -> str:
     def key(line: str):
-        return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", line)]
+        return [int(p) if i % 2 else p.lower() for i, p in enumerate(re.split(r"(\d+)", line))]  # 奇数位是捕获到的数字
 
     return "\n".join(sorted((l for l in text.splitlines() if l.strip()), key=key, reverse=reverse))
 

@@ -2,7 +2,7 @@
 
 AstrBot 按处理函数所在模块绑定插件，所以带装饰器的处理函数必须写在 main.py 的插件类里；
 它们只负责把指令名交给 core.app.MultimodalApp，具体逻辑在 core/、handlers/、processors/。
-指令名、别名、用法都定义在 core/commands.py，tests/test_commands.py 会核对两边是否一致。
+指令名、别名、用法都定义在 core/commands.py，tests/test_commands_config.py 会核对两边是否一致。
 """
 
 from __future__ import annotations
@@ -173,19 +173,21 @@ class MultimodalProcessor(Star):
         """表情包做旧，例：/表情包做旧 10"""
         await self.app.handle_command(event, "表情包做旧")
 
-    # ------------------------------------------------------------ Meme Generator（图片处理子功能）
+    # ------------------------------------------------------------ Meme Generator
     @filter.command("meme列表", alias={"meme帮助", "meme菜单", "表情帮助"})
     async def cmd_meme_help(self, event: AstrMessageEvent):
+        """查看全部表情包关键词（图片列表）"""
         await self.app.handle_command(event, "meme列表")
 
     @filter.command("meme搜索")
     async def cmd_meme_search(self, event: AstrMessageEvent):
+        """搜索表情包关键词，例：/meme搜索 玩"""
         await self.app.handle_command(event, "meme搜索")
 
     @filter.command("meme详情", alias={"表情详情", "meme信息"})
     async def cmd_meme_details(self, event: AstrMessageEvent):
+        """查看表情包参数和预览，例：/meme详情 喜报"""
         await self.app.handle_command(event, "meme详情")
-
 
     # ------------------------------------------------------------ QQ
     @filter.command("转换")

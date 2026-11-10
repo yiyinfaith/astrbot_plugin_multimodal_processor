@@ -33,6 +33,7 @@ class StreamInfo:
     channels: int = 0
     bit_rate: int = 0
     rotation: int = 0
+    attached_pic: bool = False  # 音频文件内嵌的封面图，不算视频画面
 
 
 @dataclass(slots=True)
@@ -45,7 +46,7 @@ class ProbeResult:
 
     @property
     def video(self) -> StreamInfo | None:
-        return next((s for s in self.streams if s.codec_type == "video" and s.codec not in {"mjpeg", "png"}), None)
+        return next((s for s in self.streams if s.codec_type == "video" and not s.attached_pic), None)
 
     @property
     def audio(self) -> StreamInfo | None:
@@ -102,6 +103,7 @@ def parse_probe(data: dict) -> ProbeResult:
                 channels=_to_int(raw.get("channels")),
                 bit_rate=_to_int(raw.get("bit_rate")),
                 rotation=abs(rotation) % 360,
+                attached_pic=bool((raw.get("disposition") or {}).get("attached_pic")),
             )
         )
     duration = float(fmt.get("duration") or 0) if str(fmt.get("duration") or "").replace(".", "", 1).isdigit() else 0.0

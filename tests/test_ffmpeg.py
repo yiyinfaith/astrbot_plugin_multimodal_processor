@@ -214,3 +214,12 @@ def test_end_to_end_video_and_audio_commands_cleanup(samples, tmp_path, make_app
     # 把音频当视频
     run(strict.handle_command(ev("视频静音", acomp), "视频静音"))
     assert strict.sender.texts()[1]
+
+
+def test_mjpeg_video_counts_but_cover_art_does_not():
+    from mmp.core.ffmpeg import parse_probe
+
+    video = {"codec_type": "video", "codec_name": "mjpeg", "width": 640, "height": 480}
+    cover = {**video, "disposition": {"attached_pic": 1}}
+    assert parse_probe({"streams": [video]}).video is not None
+    assert parse_probe({"streams": [cover]}).video is None

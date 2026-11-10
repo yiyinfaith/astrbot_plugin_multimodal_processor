@@ -74,6 +74,7 @@ def _take_option(text: str, options: set[str]) -> tuple[str | None, str]:
     return None, text
 
 
+_OPTION_WORDS = {"MD列表": "有序", "文本排序": "倒序", "JSON格式化": "压缩"}
 _LANG_RE = re.compile(r"^[a-z0-9+#.\-]{1,15}$")
 
 
@@ -85,8 +86,8 @@ async def run_text(inv: Invocation) -> bool:
         first, _, remain = rest.partition("\n")
         if remain and _LANG_RE.fullmatch(first.strip().lower()):
             option, rest = first.strip().lower(), remain
-    elif name in {"MD列表", "文本排序", "JSON格式化"}:
-        option, rest = _take_option(rest, {"有序", "倒序", "压缩"})
+    elif name in _OPTION_WORDS:
+        option, rest = _take_option(rest, {_OPTION_WORDS[name]})
     text = await _source_text(inv, rest)
     limit = inv.settings.general.text_max_chars
     if len(text) > limit:

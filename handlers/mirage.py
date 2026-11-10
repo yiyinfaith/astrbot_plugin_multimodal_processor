@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -19,7 +20,8 @@ from ..core.media import MediaFile, MediaRef, collect_refs
 from ..processors.image.ops import ImageResult
 from ..processors.mirage.algorithm import generate as mirage_generate
 from ..processors.prism import algorithm as prism
-from .image import run_image_job
+from ..processors.gif import frames as fr
+from .image import limits_of, run_image_job
 
 try:
     from astrbot.core.utils.session_waiter import SessionController, SessionFilter, session_waiter
@@ -47,6 +49,12 @@ else:  # pragma: no cover
     SenderSessionFilter = None
 
 
+def _check_first_frame(path: Path, limits: fr.ImageLimits) -> None:
+    """这两种坦克只用第一帧，解码前先检查分辨率，防止小文件展开成超大图片。"""
+    _, size, _ = fr.probe(path)
+    fr.check_limits(size, 1, limits)
+
+
 async def _fetch_images(inv: Invocation, event: Any, refs: list[MediaRef], workdir: Path, limit: int, max_bytes: int) -> list[MediaFile]:
     images: list[MediaFile] = []
     for ref in refs:
@@ -55,6 +63,7 @@ async def _fetch_images(inv: Invocation, event: Any, refs: list[MediaRef], workd
         media = await inv.app.resolver.fetch(event, ref, workdir, max_bytes)
         if media.sniffed.kind != IMAGE:
             raise MediaError("收到的文件不是图片")
+        await asyncio.to_thread(_check_first_frame, media.path, limits_of(inv))
         images.append(media)
     return images
 
@@ -185,8 +194,10 @@ async def prism_tank(inv: Invocation) -> bool:
 async def prism_reveal(inv: Invocation) -> bool:
     threshold = parse_int(inv.args[0], "阈值", 1, 200) if inv.args else None
     default = inv.settings.prism.inner_limit
+    limits = limits_of(inv)
 
     def process(src: Path, out_base: Path) -> ImageResult:
+        _check_first_frame(src, limits)
         path, used, source = prism.reveal(src, out_base.with_suffix(".png"), threshold=threshold, default_threshold=default)
         return ImageResult(path, f"光棱显形完成（阈值 {used}，来源：{source}）。效果不理想时可以手动指定阈值，例如 /光棱显形 48")
 

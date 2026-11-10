@@ -112,3 +112,16 @@ def test_mirage_accepts_transparent_and_animated_inputs(tmp_path):
     out = generate(front, back, tmp_path / "m.png")
     with Image.open(out) as image:
         assert image.mode == "RGBA"
+
+
+def test_mirage_rejects_oversized_image_before_decoding(tmp_path, make_app):
+    from PIL import Image as PILImage
+
+    from conftest import FakeEvent, image, plain, run
+
+    app = make_app({"image": {"basic": {"max_megapixels": 1}}})
+    path = tmp_path / "big.png"
+    PILImage.new("RGB", (2000, 2000), "white").save(path)
+    event = FakeEvent([image(path), image(path), plain("/幻影坦克")], message_str="幻影坦克")
+    run(app.handle_command(event, "幻影坦克"))
+    assert "分辨率" in app.sender.texts()[0]

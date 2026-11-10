@@ -52,6 +52,7 @@ class ParsedCommand:
 
 CATEGORIES: dict[str, str] = {
     "image": "图片 / GIF",
+    "meme": "表情包（需要 meme-generator）",
     "qq": "QQ 图片保存",
     "mirage": "幻影坦克",
     "prism": "光棱坦克",
@@ -128,10 +129,10 @@ COMMANDS: tuple[CommandSpec, ...] = (
         "表情包做旧", "age_meme", "image", "模拟反复转发后发绿、变糊的老图效果，支持动图", "[次数 1~50，默认 5]",
         ("/表情包做旧", "/做旧 15"), "1～5 轻度，5～10 中度，10～20 重度，20 以上极限。", aliases={"做旧": ()},
     ),
-    # ---------------- Meme Generator（图片处理子功能） ----------------
-    CommandSpec("meme列表", "meme_help", "image", "查看全部表情包关键词", examples=("/meme列表",), aliases={"meme帮助": (), "meme菜单": (), "表情帮助": ()}),
-    CommandSpec("meme搜索", "meme_search", "image", "搜索表情包关键词", "<关键词片段>", examples=("/meme搜索 贴",)),
-    CommandSpec("meme详情", "meme_details", "image", "查看表情包参数和预览", "<关键词>", examples=("/meme详情 喜报",), aliases={"表情详情": (), "meme信息": ()}),
+    # ---------------- Meme Generator ----------------
+    CommandSpec("meme列表", "meme_help", "meme", "查看全部表情包关键词", examples=("/meme列表",), aliases={"meme帮助": (), "meme菜单": (), "表情帮助": ()}),
+    CommandSpec("meme搜索", "meme_search", "meme", "搜索表情包关键词", "<关键词片段>", examples=("/meme搜索 贴",)),
+    CommandSpec("meme详情", "meme_details", "meme", "查看表情包参数和预览", "<关键词>", examples=("/meme详情 喜报",), aliases={"表情详情": (), "meme信息": ()}),
     # ---------------- QQ ----------------
     CommandSpec(
         "转换", "qq_convert", "qq", "把 QQ 图片/GIF/官方表情重新发送为可下载文件", "",
@@ -299,7 +300,7 @@ def help_overview(ffmpeg_ok: bool = True) -> str:
 
 
 _CATEGORY_KEYWORDS = {
-    "图片": "image", "gif": "image", "动图": "image", "qq": "qq", "转换": "qq",
+    "图片": "image", "gif": "image", "动图": "image", "表情包": "meme", "meme": "meme", "qq": "qq", "转换": "qq",
     "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "文本": "text", "文字": "text", "md": "text", "视频": "video", "音频": "audio", "帮助": "help",
 }
 

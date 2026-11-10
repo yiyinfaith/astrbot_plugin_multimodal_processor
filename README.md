@@ -1,190 +1,292 @@
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/yiyinfaith/astrbot_plugin_multimodal_processor/main/logo.png" alt="多模态处理器" width="128" />
+
 # 多模态处理器
 
-AstrBot 的本地媒体工具插件，统一处理图片、GIF、视频、音频、QQ 图片保存、幻影坦克、光棱坦克和可选的 meme-generator 表情包。处理过程不调用大模型。
+AstrBot 本地媒体工具插件：图片 / GIF、表情包生成、QQ 图片保存、幻影坦克与光棱坦克、文本、视频、音频。
+
+全部在本地完成，不调用大模型。
+
+</div>
 
 ## 安装
 
-把插件放入 AstrBot 的 `data/plugins/astrbot_plugin_multimodal_processor/`，安装基础依赖：
+1. 在 AstrBot WebUI 的插件市场搜索安装，或上传仓库 zip，Pillow、NumPy、aiohttp 会自动安装。
+2. 视频和音频需要 FFmpeg 与 FFprobe，其他功能不需要：
+
+| 系统 | 安装方式 |
+| :--- | :--- |
+| Debian / Ubuntu | `sudo apt install ffmpeg` |
+| macOS | `brew install ffmpeg` |
+| Windows | 下载 [FFmpeg 构建](https://www.gyan.dev/ffmpeg/builds/)，在配置里填写 `ffmpeg.exe`、`ffprobe.exe` 的完整路径 |
+| Docker | 进入容器执行 `apt update && apt install -y ffmpeg` |
+
+3. 需要表情包功能时，按 [Meme 表情包](#meme-表情包) 单独安装 meme-generator。
+
+## 使用方式
+
+**媒体来源**：引用一条带媒体的消息、随指令附带媒体或文件；图片指令还可以 `@某人` 处理对方的 QQ 头像。引用和附带同时存在时，引用优先。
+
+**触发**：指令必须带唤醒前缀（如 `/`）或 @ 机器人。QQ 回复别人时自动插入的 `@对方` 不影响识别。表情包关键词的触发规则见 [Meme 表情包](#meme-表情包)。
+
+发送 `/多模态处理帮助` 查看全部指令，`/多模态处理帮助 视频` 查看分类，`/多模态处理帮助 视频裁剪` 查看单条用法。
+
+## 指令
+
+### 图片与 GIF
+
+动图（GIF、动态 WebP、APNG）逐帧处理，保留每帧时长、循环次数和透明度。
+
+| 指令 | 参数 | 说明 |
+| :--- | :--- | :--- |
+| `/反色` | | 反色并保留透明度 |
+| `/顺时针` `/逆时针` | | 旋转 90° |
+| `/左右翻转` `/上下翻转` | | 镜像翻转 |
+| `/左对称` `/右对称` `/上对称` `/下对称` | | 保留一半并镜像到另一半 |
+| `/调速` | `<倍率 0.1~10>` | 超过帧率上限时自动回退到最高可用倍率；开启「允许丢帧」后合并短帧以达到目标倍率 |
+| `/GIF加速` `/GIF减速`（`/加速` `/减速`） | `[倍数 1~10，默认 2]` | 等同于 `/调速 倍数`、`/调速 1/倍数` |
+| `/图片转换` | `<png\|jpg\|webp\|gif\|bmp\|tiff> [静态]` | 转 gif、webp、png 默认保留动画，加「静态」只取首帧；bmp、tiff 以文件发送 |
+| `/图片压缩` | `[质量 1~100] [最长边]` | 结果反而更大时只提示、不发送 |
+| `/图片缩放` | `<800x600\|800\|x600\|50%\|720p>` | 只给一边时等比缩放，`720p` 指短边 |
+| `/图片裁剪` | `<x,y,宽,高\|宽:高>` | 比例裁剪从中心取最大区域 |
+| `/图片信息` | | 格式、尺寸、帧数、时长、循环、大小 |
+| `/图片转线稿`（`/线稿`） | | 铅笔素描风格，支持动图 |
+| `/表情包做旧`（`/做旧`） | `[次数 1~50，默认 5]` | 模拟反复转发后发绿、变糊 |
+| `/精灵图转GIF`（`/合成GIF` `/合成1gif` `/合成2gif`） | `<行x列> [每帧时长] [边距…]` | 按行从左到右取格子，例：`/精灵图转GIF 6x6 0.05s 边距上10` |
+| `/多图合成GIF` | `[每帧时长，默认 0.5s]` | 合成引用、附带、QQ 合并转发里的图片和 @ 用户头像 |
+| `/GIF分解` | `[最多帧数]` | 拆成 PNG 帧，超过上限时均匀抽取 |
+| `/网格切图`（`/切图` `/网格裁剪`） | `<行x列> [边距…]` | 动图切块后仍是动图 |
+
+每帧时长可写 `0.1`、`0.1s`、`100ms`、`10fps`。边距可写 `边距10`、`边距上20`、`边距 左 5`，可以叠加。
+
+### QQ 图片保存
+
+仅 OneBot v11 可用，其他平台会明确提示。
+
+| 指令 | 参数 | 说明 |
+| :--- | :--- | :--- |
+| `/转换` | | 把图片、GIF 或 QQ 官方表情重新发送为可下载文件，默认私聊发送，避免占用群文件 |
+| `/外显取名` | `<文字>` | 重新发送图片并修改它在消息列表里的外显文字 |
+| `/转换禁用` `/转换启用` | `[群号]` | 管理员禁用或恢复某群的 `/转换`，不填为当前群 |
+
+### 幻影坦克与光棱坦克
+
+| 指令 | 参数 | 说明 |
+| :--- | :--- | :--- |
+| `/幻影坦克` | | 黑白版：白底显示表图，黑底显示里图 |
+| `/彩色幻影坦克`（`/彩色幻影`） | | 彩色版，颜色参数见配置 |
+| `/光棱坦克` | `[彩色\|黑白]` | 平时显示表图，拉伸暗部色阶后显示里图 |
+| `/光棱显形`（`/光棱坦克显形`） | `[阈值 1~200]` | 还原里图，阈值优先读取图片内记录的参数，其次自动检测 |
+
+可以一次附带两张图（第一张为表图），也可以只发指令后按提示分步发送，发送 `取消` 中止。群里每个人的会话互相独立。光棱坦克依赖精确像素值，转发时请发原图。
+
+### 文本
+
+文本取自指令后面的文字（可换行）；没有时取引用消息的文字，或引用、附带的文本文件（支持 UTF-8、GBK）。结果过长时以文件发送。
+
+| 指令 | 参数 | 说明 |
+| :--- | :--- | :--- |
+| `/去除MD格式` `/添加MD格式` | `[文本]` | 去掉 Markdown 标记，或给普通文本加上格式 |
+| `/MD代码块` | `[语言] 文本` | 语言单独占第一行 |
+| `/MD引用` | `[文本]` | 每行加 `>` |
+| `/MD列表` | `[有序] 文本` | 每行变成列表项 |
+| `/MD表格` | `文本` | CSV、TSV 或空格分隔的文本转表格，首行为表头 |
+| `/字数统计` | `[文本]` | 字符、汉字、单词、行数、段落 |
+| `/全角转半角` `/半角转全角` `/转大写` `/转小写` | `[文本]` | 字符转换 |
+| `/清理空白` `/文本去重` `/文本反转` | `[文本]` | 文本整理 |
+| `/文本排序` | `[倒序] 文本` | 按行排序，数字按大小 |
+| `/Base64编码` `/Base64解码` `/URL编码` `/URL解码` | `[文本]` | 编解码 |
+| `/JSON格式化` | `[压缩] 文本` | 格式化 JSON，加「压缩」压成一行 |
+| `/文本哈希` | `[文本]` | MD5、SHA1、SHA256 |
+
+### 视频
+
+需要 FFmpeg。时间可写 `90`、`1:30`、`00:01:30.5`、`1分30秒`。
+
+| 指令 | 参数 | 说明 |
+| :--- | :--- | :--- |
+| `/视频转GIF` | `[帧率] [宽度] [时长] [开始时间]` | 不填用配置默认值，也支持下方的关键字写法 |
+| `/GIF转视频` | | GIF、动态 WebP、APNG 转 MP4，透明区域为黑色 |
+| `/视频转换` | `<mp4\|webm\|mkv\|mov>` | 编码兼容时直接封装，否则重新编码 |
+| `/视频压缩` | `[高\|中\|低\|CRF 18~40] [720p]` | 第二个参数限制短边 |
+| `/视频裁剪` | `<开始> <结束>` | 重新编码，精确到帧 |
+| `/视频调速` | `<倍率 0.25~4>` | 音画同步并保持音调 |
+| `/视频缩放` | `<1280x720\|1280\|720p\|50%>` | 不超过输出分辨率上限 |
+| `/视频旋转` | `<90\|180\|270\|-90>` | 90 为顺时针 |
+| `/提取音频` | `[mp3\|m4a\|wav\|ogg\|flac\|opus]` | 默认 mp3 |
+| `/视频静音` | | 去掉音轨 |
+| `/视频截图`（`/提取视频帧` `/视频截帧`） | `[时间，默认 0]` | 输出 PNG |
+| `/视频信息` | | 容器、时长、分辨率、帧率、编码、码率 |
+
+`/视频转GIF` 关键字写法可以和位置参数混用：`2s-4.5s`（时间段）、`开始 2`、`时长 3`、`fps15`、`1/3`（每 3 帧取 1 帧）、`0.5` 或 `50%`（按原宽缩放）。例：`/视频转GIF 2s-4.5s fps15 50%`。
+
+### 音频
+
+需要 FFmpeg。视频文件也可以作为输入，QQ 语音会先自动解码。
+
+| 指令 | 参数 | 说明 |
+| :--- | :--- | :--- |
+| `/音频转换` | `<mp3\|wav\|ogg\|m4a\|flac\|opus>` | 快捷写法：`/音频转MP3` `/音频转WAV` `/音频转OGG` `/音频转M4A` `/音频转FLAC` |
+| `/音频裁剪` | `<开始> <结束>` | |
+| `/音频调速` | `<倍率 0.25~4> [变调]` | 默认保持音调 |
+| `/音量`（`/音频音量`） | `<1.5\|50%\|+6dB\|-3dB>` | 放大时自动限幅 |
+| `/音频压缩` | `[码率，默认 64k]` | MP3、M4A、OGG、OPUS 保持格式，其他转 MP3 |
+| `/音频静音` | `<开始> <结束>` | 把一段时间静音 |
+| `/去除静音`（`/音频去静音`） | `[阈值 dB，默认 -50] [最短静音秒数，默认 0.5]` | 删除静音片段 |
+| `/音频信息` | | 格式、时长、编码、采样率、码率 |
+
+## Meme 表情包
+
+基于可选的 [meme-generator](https://github.com/MemeCrafters/meme-generator)，默认关闭。安装后在「图片处理 → Meme Generator 表情包」中启用，重载插件即可。Python 版和 Rust 版由插件自动识别，无需配置。
+
+### 使用
+
+| 指令 | 说明 |
+| :--- | :--- |
+| `/meme列表`（`/meme帮助` `/meme菜单` `/表情帮助`） | 返回现场渲染的关键词列表图片 |
+| `/meme搜索 玩` | 返回包含「玩」的触发关键词及英文文件夹名 |
+| `/meme详情 喜报`（`/表情详情` `/meme信息`） | 查看所需参数和预览，关键词或英文文件夹名都可以 |
+
+**触发**：消息以关键词开头、后面是空白或结束时触发，例如 `喜报 好消息`。默认不需要 `/` 或 @，结果只发送图片或 GIF。普通聊天缺少必要参数时不回复，也不拦截消息；带前缀或 @ 时才提示原因。
+
+**图片**：依次取引用、附带的图片和 @ 用户的头像。QQ 上不够最少张数时，自动补发送者和机器人的头像。
+
+**文字**：关键词后用空格分隔，没写时取引用消息的文字，再没有时用该表情的默认文字。
+
+**选项**：部分表情支持 `--选项 值`、`--选项=值` 或 `--开关`，可用选项见上游文档。
+
+### 版本选择
+
+| | Python 版 | Rust 版 |
+| :--- | :--- | :--- |
+| 版本 | `0.1.x`，推荐 `0.1.14` | `0.2.x` |
+| 依赖 | 要求 `Pillow<11`，与 AstrBot 冲突，需要下面的处理 | 无 Python 依赖，不冲突 |
+| 额外表情 | [meme-generator-contrib](https://github.com/MemeCrafters/meme-generator-contrib) | [meme-generator-contrib-rs](https://github.com/MemeCrafters/meme-generator-contrib-rs/actions) |
+
+两个版本使用同一个包名，不能同时安装。插件不会自动下载或修改它们，以下命令都在 AstrBot 根目录执行。如果 AstrBot 由 uv 管理且虚拟环境里没有 pip，把 `.venv/bin/python -m pip install` 换成 `uv pip install --python .venv/bin/python`。
+
+### 安装 Python 版
 
 ```bash
-pip install -r requirements.txt
+# 1. 跳过依赖检查安装本体，避免 Pillow 被降级
+.venv/bin/python -m pip install --no-deps "meme-generator==0.1.14" "pil-utils==0.2.2"
+
+# 2. 单独安装其余依赖
+.venv/bin/python -m pip install "arclet-alconna>=1.8.23,<2,!=1.8.27" "arclet-alconna-tools>=0.7.9,<0.8" bbcode dateparser filetype "opencv-python-headless>=4,<5" "qrcode>=8,<9" "rich>=13,<14" "skia-python>=138" toml
+
+# 3. 解除元数据里的 Pillow 上限，让 pip check 不再报冲突
+sed -i -E 's/^(Requires-Dist: Pillow \(>=10\.0\.0),<1[12]\.0\.0\)/\1)/' .venv/lib/python3.*/site-packages/{meme_generator-0.1.14,pil_utils-0.2.2}.dist-info/METADATA
+
+# 4. 下载表情图片，pip 包里不含这些素材
+.venv/bin/meme download
+
+# 5. 检查
+.venv/bin/python -c "import meme_generator as m; print(m.__version__, len(m.get_memes()))"
 ```
 
-视频和音频需要系统安装 FFmpeg 与 FFprobe：
+不要执行不带 `--no-deps` 的 `pip install meme-generator`，也不要为了满足旧上限降级 AstrBot 的 Pillow。服务器没有中文字体时，生成的文字会显示成方块，安装 Noto Sans CJK 等中文字体后重启 AstrBot。
+
+### 安装 Rust 版
 
 ```bash
-sudo apt install ffmpeg
+.venv/bin/python -m pip install "meme-generator>=0.2,<0.3"
+.venv/bin/python -c "from meme_generator.resources import check_resources; check_resources()"
+.venv/bin/python -c "import meme_generator as m; print(m.get_version(), len(m.get_memes()))"
 ```
 
-Windows 或 Docker 环境请在插件配置中填写可执行文件的完整路径。图片、GIF、QQ 图片保存和幻影坦克不依赖 FFmpeg。
+第二条命令把字体和图片下载到 `~/.meme_generator`（可用环境变量 `MEME_HOME` 修改）。
 
-## 快速使用
+### 添加额外表情
 
-所有媒体命令都支持引用消息、随命令附带媒体和文件消息。图片命令还支持 `@` QQ 用户头像。发送 `/多模态处理帮助` 查看指令，发送 `/多模态处理帮助 视频裁剪` 查看单条用法。
+**Python 版**：把需要的表情目录放进 `site-packages/meme_generator/memes/`，只合并目录，不要覆盖整个 `memes`。
 
-## 图片与 GIF
+如果日志出现 `Failed to import` 和 `MemeTags` 属性错误，说明该表情用到了 `tags.py` 里没有的标签，在 `site-packages/meme_generator/tags.py` 的 `class MemeTags` 中补上：
 
-| 指令 | 用法 |
-| --- | --- |
-| `/反色` | 反色并保留透明度 |
-| `/顺时针`、`/逆时针` | 旋转 90° |
-| `/左右翻转`、`/上下翻转` | 翻转 |
-| `/左对称`、`/右对称`、`/上对称`、`/下对称` | 半边镜像 |
-| `/调速 2` | GIF 调速；按配置限制帧率，支持均匀丢帧 |
-| `/图片转换 webp` | 转换格式；GIF/WebP/APNG 默认保留动画，加 `静态` 只保留首帧 |
-| `/图片压缩 80` | 按质量压缩 |
-| `/图片缩放 800x600` | 缩放，支持只给一边、百分比和 720p |
-| `/图片裁剪 0,0,300,300` | 区域裁剪，也支持 `1:1`、`16:9` |
-| `/图片信息` | 查看格式、尺寸、帧数、时长和透明度 |
-| `/图片转线稿` | 生成线稿 |
-| `/表情包做旧 10` | 模拟反复转发后的老图效果 |
-
-动图会逐帧处理，保留每帧时长、循环次数和透明度。GIF 调速默认把实际帧率限制在配置上限内；开启丢帧策略后会均匀合并短帧。
-
-## 动图工具
-
-| 指令 | 用法 |
-| --- | --- |
-| `/精灵图转GIF 4x4 0.1s` | 按网格拆分精灵图并合成动图 |
-| `/多图合成GIF 0.5` | 把多张图片合成 GIF |
-| `/GIF分解 20` | 拆分为最多 20 帧 |
-| `/网格切图 3x3` | 网格裁切，动图切块仍保留动画 |
-
-## QQ 图片保存
-
-这些指令只在 OneBot v11 可用，其他平台会明确提示：
-
-| 指令 | 用法 |
-| --- | --- |
-| `/转换` | 把 QQ 图片、GIF 或官方表情重新发送为可下载文件 |
-| `/外显取名 好耶` | 修改图片在 QQ 消息里的外显文字 |
-| `/转换禁用 123456` | 管理员禁用某个群的 `/转换` |
-| `/转换启用 123456` | 管理员恢复某个群 |
-
-群聊默认私聊发送文件，避免占用群文件；发送方式可以在配置中改为直接发群或私聊失败后发群。QQ 官方表情通过协议端接口提取，是否允许提取可配置。
-
-## 幻影坦克与光棱坦克
-
-- `/幻影坦克`：黑白幻影坦克。
-- `/彩色幻影坦克`：彩色幻影坦克。
-- `/光棱坦克`：生成光棱坦克，可指定彩色或黑白表图。
-- `/光棱显形`：还原光棱坦克中的里图。
-
-两种坦克都支持一次附带两张图片，也支持按提示分步发送。分步会话按发送者隔离，发送 `取消` 可以中止，超时会自动清理临时文件。
-
-## 视频与音频
-
-视频命令：
-
-`/视频转GIF`、`/GIF转视频`、`/视频转换 mp4|webm|mkv|mov`、`/视频压缩`、`/视频裁剪 开始 结束`、`/视频调速 2`、`/视频缩放 1280x720`、`/视频旋转 90`、`/提取音频 mp3`、`/视频静音`、`/视频截图 3`、`/视频信息`。
-
-音频命令：
-
-`/音频转换 wav`、`/音频转MP3`、`/音频裁剪 开始 结束`、`/音频调速 1.5`、`/音量 +6dB`、`/音频压缩 64k`、`/音频静音 开始 结束`、`/去除静音`、`/音频信息`。
-
-视频调速会同步处理音频并尽可能保持音调；音频调速默认保持音调。结果根据平台能力发送为视频、语音或文件。
-
-## Meme Generator 表情包
-
-这是图片处理中的meme表情包生成功能，默认关闭。启用后会自动识别运行环境中的 meme-generator API，识别依据是实际 API 能力，本插件兼容python版和rust版的meme-generator包，0.1.x为python版，0.2.x为rust版。
-
-管理命令：
-
-- `/meme列表`、`/meme帮助`、`/meme菜单`：返回现场渲染的关键词列表图片。
-- `/meme搜索 玩`：返回包含“玩”的触发关键词和英文文件夹名。
-- `/meme详情 关键词`
-
-启用后直接发送精确关键词即可触发，默认不要求 `/` 前缀或 `@` 机器人。可以配置额外前缀、静态图片压缩和超时；不提供模糊匹配，避免普通聊天误触。
-
-### 手动安装运行时
-
-meme-generator默认不自动安装，因为会与 AstrBot 依赖产生冲突，请用户自行进入AstrBot的虚拟环境手动pip安装meme-generator，并自行修改meme-generator包的依赖包版本以解决冲突。
-
-若用户在site-packages/meme_generator/memes中自行添加了表情包资源，请记得在site-packages/meme_generator/tags.py中添加对应tag，否则会报错。
-
-Python 版推荐 `0.1.14`：
-
-```bash
-AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator==0.1.14"
+```python
+class MemeTags:
+    # ……保留原有内容
+    new_tag = {"标签名"}
 ```
 
-### 0.1.14 在 AstrBot 中的最小兼容修改
+单个表情加载失败不影响其他表情。**重装 meme-generator 可能覆盖 `memes` 和 `tags.py`，操作前请先备份。**
 
-如果 AstrBot 使用 Pillow 11 或更高版本，安装后只需改两处发行元数据。先打开 `site-packages/meme_generator-0.1.14.dist-info/METADATA`，将：
-
-```text
-Requires-Dist: Pillow (>=10.0.0,<11.0.0)
-```
-
-改为：
-
-```text
-Requires-Dist: Pillow (>=10.0.0)
-```
-
-如果 `site-packages/pil_utils-*.dist-info/METADATA` 仍写着 `Pillow (>=10.0.0,<12.0.0)`，也改为：
-
-```text
-Requires-Dist: Pillow (>=10.0.0,<12.0.0)
-```
-
-改为：
-
-```text
-Requires-Dist: Pillow (>=10.0.0)
-```
-
-不要执行普通的依赖升级，也不要为了满足旧上限降级 AstrBot 的 Pillow。安装完成后检查版本和加载数量：
-
-```bash
-AstrBot/.venv/bin/python -c "import meme_generator; from meme_generator.version import __version__; print(__version__, len(meme_generator.get_memes()))"
-```
-
-Rust 版按上游说明安装与你系统匹配的版本，例如：
-
-```bash
-AstrBot/.venv/bin/python -m pip install --no-deps "meme-generator>=0.2"
-```
-
-两个版本使用相同的发行名，不能同时安装。插件只调用已安装的 meme-generator，不会自动下载资源或修改其文件。
-
-### 额外表情包仓库
-
-额外表情包不在本插件仓库中，需要按所用实现单独准备：
-
-- **Python 版**：从 [meme-generator-contrib](https://github.com/MemeCrafters/meme-generator-contrib) 下载需要的表情包目录，把选中的目录合并到虚拟环境的 `site-packages/meme_generator/memes/`。只合并目录，不要用整个 `memes` 目录覆盖已有内容。
-- **Rust 版**：从 [meme-generator-contrib-rs Actions](https://github.com/MemeCrafters/meme-generator-contrib-rs/actions) 下载与系统架构匹配的构建产物，按上游说明放入 `$MEME_HOME/libraries`，并准备 `$MEME_HOME/resources` 和字体。
-- **官方运行时**：[MemeCrafters/meme-generator](https://github.com/MemeCrafters/meme-generator) 是运行时源码和版本说明；Python 版与 Rust 版使用同一个发行名，不能同时安装。
-
-安装额外表情后运行：
-
-```bash
-/root/yiyin/AstrBot/.venv/bin/python -c "import meme_generator; print(len(meme_generator.get_memes()))"
-```
-
-如果表情目录已经加载但关键词找不到，在对应 Python 版的 `meme_generator/tags.py` 中按官方格式补充标签；Rust 版按上游资源和标签格式配置。不要覆盖已有的 `memes/`、`tags.py` 或字体目录。单个额外表情导入失败不会阻塞其他已加载表情，具体错误查看 AstrBot 日志。
+**Rust 版**：下载与系统架构匹配的构建产物，放入 `$MEME_HOME/libraries`。
 
 ## 配置
 
-配置分为“通用设置、文本处理、图片处理、视频处理、音频处理”。图片处理下包含基础、GIF、QQ 图片保存、幻影坦克、光棱坦克和 Meme Generator。
+在 WebUI 的插件配置中设置，分为通用设置、文本处理、图片处理、视频处理、音频处理。下表列出常用项，全部字段和默认值见 [_conf_schema.json](./_conf_schema.json)。
 
-通用设置包括任务超时、并发数、媒体大小、下载安全、临时目录清理和调试日志。视频设置包括 FFmpeg 路径、时长/分辨率上限、CRF、预设和线程数。音频设置包括大小/时长上限、默认码率和发送方式。完整字段和默认值见 [_conf_schema.json](./_conf_schema.json)。
+| 位置 | 配置 | 默认 | 说明 |
+| :--- | :--- | :--- | :--- |
+| 通用 | 任务超时 | 180 秒 | 超时中止并清理 |
+| | 视频音频 / 图片并发数 | 1 / 2 | 小内存 VPS 保持默认 |
+| | 排队数 / 单用户任务数 | 5 / 2 | 满了提示稍后再试 |
+| | 下载超时 | 60 秒 | |
+| | 允许下载内网地址 | 关 | 默认拦截内网和保留地址，防止 SSRF |
+| | 额外允许读取的本地目录 | 空 | 协议端图片缓存在其他目录时填写 |
+| 文本 | 最多处理字数 / 转文件阈值 | 20000 / 3000 | |
+| 图片 → 基础 | 大小 / 分辨率 / 帧数上限 | 20 MB / 40 百万像素 / 600 | |
+| | 动图内存上限 | 512 MB | 按 宽×高×4×帧数 估算 |
+| | 默认图片质量 | 85 | |
+| 图片 → 动图 | GIF 最高帧率 | 50 | |
+| | 调速允许丢帧 | 关 | 见 `/调速` |
+| | 合成动图格式 | GIF | 可选动态 WebP、APNG |
+| | 分解帧数 / 合成图片数上限 | 50 / 30 | |
+| 图片 → Meme | 启用 | 关 | 需要先安装 meme-generator |
+| | 需要前缀或 @ | 关 | |
+| | 额外前缀 | 空 | 填写后关键词前必须带它 |
+| | 压缩静态图 | 开 | 超过 512px 的静态图缩小，GIF 不变 |
+| | 生成超时 | 15 秒 | |
+| | 全局禁用关键词 | 空 | 关键词或英文文件夹名，整个表情都禁用 |
+| | 按群禁用 | 空 | 每项一个群，例：`123456:摸,喜报` |
+| 图片 → QQ | /转换 发送方式 | 私聊 | 可改为发群、私聊失败再发群 |
+| | 禁止 /转换 的群 | 空 | 管理员指令会写回这里 |
+| 图片 → 幻影坦克 | 大小上限 / 输出最长边 | 10 MB / 2048 | |
+| | 彩色参数 a / b / w | 0.5 / 20 / 0.1 | 里图亮度系数、亮度偏移、颜色权重 |
+| 图片 → 光棱坦克 | 大小上限 / 输出最长边 | 10 MB / 1200 | |
+| | 里图 / 表图色阶端点 | 32 / 64 | 表图端点必须更大 |
+| | 隐藏率 | 2 | 2～8，越大表图越自然、显形越模糊 |
+| 视频 | FFmpeg / FFprobe 路径 | `ffmpeg` / `ffprobe` | 音频共用 |
+| | 大小 / 时长上限 | 100 MB / 300 秒 | |
+| | 输入 / 输出最长边 | 3840 / 1920 | |
+| | CRF / 编码预设 / 线程 | 28 / veryfast / 2 | |
+| | 单进程内存上限 | 1536 MB | 仅 Linux，0 不限制 |
+| | 转 GIF 帧率 / 宽度 / 最长时长 | 12 / 480 / 15 秒 | |
+| 音频 | 大小 / 时长上限 | 50 MB / 1800 秒 | |
+| | 默认码率 | 128 kbps | |
+| | 发送方式 | 群聊语音、私聊文件 | 也可固定为语音或文件 |
+
+## 平台支持
+
+| 功能 | QQ（OneBot v11） | 其他平台 |
+| :--- | :--- | :--- |
+| 图片、动图工具、坦克、文本 | ✅ | ✅ 需平台支持发送图片 |
+| 视频、音频 | ✅ | ✅ 不支持视频或语音时改为文件 |
+| 表情包 | ✅ | ✅ 没有头像补全，需要自带图片 |
+| @ 取头像、`/转换`、`/外显取名` | ✅ | ❌ 明确提示 |
 
 ## 安全与清理
 
-- 媒体下载流式写盘，检查文件头和大小，默认拦截内网地址及危险重定向。
-- 本地文件只允许来自 AstrBot 数据目录、临时目录和显式配置的目录。
-- Pillow/NumPy 在后台线程运行，FFmpeg 通过异步参数列表启动，不经过 shell。
-- 每个任务有独立临时目录，成功、失败、取消和超时都会清理；进程异常时由过期清理兜底。
-- 单个媒体或表情包任务失败只回复当前请求，不会让 AstrBot 崩溃。
+- 媒体下载流式写盘，按文件头识别类型并限制大小，默认拦截内网地址和危险重定向。
+- 本地文件只允许来自 AstrBot 数据目录、临时目录和配置的额外目录。
+- 图片处理在后台线程运行，FFmpeg 以参数列表启动，不经过 shell。
+- 每个任务使用独立临时目录，成功、失败、取消和超时都会清理，异常退出时由过期清理兜底。
 
-## 交流
+## 交流与反馈
 
 | 吟枢苑✨吟窝（插件反馈群） |
 | :---: |
 | 群号：1059351824 |
 | <img src="https://raw.githubusercontent.com/yiyinfaith/astrbot_plugin_multimodal_processor/main/assets/qq-group-chat.jpg" alt="插件反馈群二维码" width="240" /> |
 
-## 许可证与第三方说明
+## 致谢与许可
 
-本项目采用 [GNU AGPL v3.0](./LICENSE)。参考项目、第三方许可证和 meme-generator 的可选运行时说明见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+本插件借鉴了以下项目的思路，感谢原作者：
+
+- [astrbot_plugin_pic_toolbox](https://github.com/lirundong093-glitch/astrbot_plugin_pic_toolbox)
+- [astrbot_plugins_ConvetPicture](https://github.com/orchidsziyou/astrbot_plugins_ConvetPicture)
+- [astrbot_plugin_mirage_tank](https://github.com/Yuzi-Liang/astrbot_plugin_mirage_tank)
+- [astrbot_plugin_gifcaijian](https://github.com/shskjw/astrbot_plugin_gifcaijian)
+
+光棱坦克原理参考 [TankFactory](https://github.com/TankFactory)。本项目采用 [AGPL-3.0](./LICENSE) 发布，第三方许可与版权说明见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from ...core.errors import UsageError
+from ...core.errors import MediaTooLarge, UsageError
 from . import frames as fr
 
 
@@ -67,6 +67,12 @@ def sprite_to_animation(path: Path, rows: int, cols: int, frame_ms: int, margins
 
 def compose_images(paths: list[Path], frame_ms: int, limits: fr.ImageLimits, max_side: int) -> fr.Animation:
     """多张图片合成动图：以最大的宽、高为画布，每张等比缩放后居中，空白处透明。"""
+    needed = 0
+    for path in paths:  # 所有图片会同时留在内存里，先按总量检查
+        _, (width, height), _ = fr.probe(path)
+        needed += width * height * 4
+    if needed > limits.memory_bytes:
+        raise MediaTooLarge(f"这些图片展开后约需 {needed / 1024 / 1024:.0f} MB 内存，超过限制（{limits.memory_bytes // 1024 // 1024} MB）")
     images = [fr.load(p, limits, first_frame_only=True).frames[0] for p in paths]
     canvas_w = max(i.width for i in images)
     canvas_h = max(i.height for i in images)

@@ -15,9 +15,6 @@ from PIL import Image, ImageSequence, UnidentifiedImageError
 
 from ...core.errors import MediaError, MediaTooLarge
 
-# 解码炸弹防护交给下面的显式检查；这里放宽 Pillow 的默认阈值，避免它先抛出不友好的警告。
-Image.MAX_IMAGE_PIXELS = None
-
 ANIMATABLE = {"GIF", "WEBP", "PNG"}
 STATIC_FORMATS = {"PNG", "JPEG", "WEBP", "GIF", "BMP", "TIFF"}
 EXT_TO_FORMAT = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "webp": "WEBP", "gif": "GIF", "bmp": "BMP", "tiff": "TIFF", "tif": "TIFF"}
@@ -61,6 +58,8 @@ def probe(path: str | Path) -> tuple[str, tuple[int, int], int]:
             return (image.format or "").upper(), image.size, int(getattr(image, "n_frames", 1) or 1)
     except UnidentifiedImageError as exc:
         raise MediaError("无法识别的图片格式") from exc
+    except Image.DecompressionBombError as exc:
+        raise MediaTooLarge("图片分辨率过大") from exc
     except (OSError, ValueError) as exc:
         raise MediaError(f"图片已损坏或无法读取：{exc}") from exc
 

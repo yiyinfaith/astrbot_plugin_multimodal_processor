@@ -248,3 +248,20 @@ def test_new_commands_end_to_end(tmp_path, make_app):
     disabled = make_app({"image": {"prism": {"enable": False}}})
     run(disabled.handle_command(FakeEvent([plain("/光棱显形"), image(a)], message_str="光棱显形"), "光棱显形"))
     assert "光棱坦克功能已在配置中关闭" in disabled.sender.texts()[0]
+
+
+def test_compose_checks_total_memory(tmp_path):
+    from PIL import Image as PILImage
+
+    from mmp.core.errors import MediaTooLarge
+    from mmp.processors.gif import compose as compose_module
+    from mmp.processors.gif.frames import ImageLimits
+
+    paths = []
+    for index in range(3):
+        path = tmp_path / f"{index}.png"
+        PILImage.new("RGB", (100, 100), "red").save(path)
+        paths.append(path)
+    limits = ImageLimits(max_pixels=1_000_000, max_frames=10, memory_bytes=100 * 100 * 4 * 2)
+    with pytest.raises(MediaTooLarge, match="展开"):
+        compose_module.compose_images(paths, 100, limits, 1024)

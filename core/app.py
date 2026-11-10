@@ -28,8 +28,8 @@ from .log import log
 
 Handler = Callable[["Invocation"], Awaitable[bool]]
 
-_FEATURE_OF_CATEGORY = {"image": "image", "qq": "qq", "mirage": "mirage", "prism": "prism", "video": "video", "audio": "audio"}
-_FEATURE_NAMES = {"image": "图片", "mirage": "幻影坦克", "prism": "光棱坦克", "video": "视频", "audio": "音频"}
+_FEATURE_OF_CATEGORY = {"image": "image", "meme": "meme", "qq": "qq", "mirage": "mirage", "prism": "prism", "video": "video", "audio": "audio"}
+_FEATURE_NAMES = {"image": "图片", "meme": "表情包", "mirage": "幻影坦克", "prism": "光棱坦克", "video": "视频", "audio": "音频"}
 
 
 @dataclass(slots=True)
@@ -129,7 +129,6 @@ class MultimodalApp:
         await self.memes.initialize()
 
     async def stop(self) -> None:
-        await self.memes.close()
         await self.tasks.stop()
 
     def debug(self, message: str) -> None:
@@ -183,7 +182,7 @@ class MultimodalApp:
     async def handle_passive(self, event: Any) -> None:
         """处理 AstrBot 指令系统接不到的情况：QQ 回复他人时自动插入 @，导致「@某人 /指令」不被唤醒。
 
-        所有指令都必须带唤醒前缀（或 @ 机器人）才会触发，不做无前缀的关键词匹配。
+        插件自身的指令都必须带唤醒前缀（或 @ 机器人）才会触发；表情包关键词是否需要前缀由配置决定。
         """
         text, prefixed = self.command_text(event)
         parsed = parse_command(text)
@@ -193,7 +192,7 @@ class MultimodalApp:
             if not (prefixed or woken or meme_plain_allowed):
                 return
             try:
-                handled = await self.memes.handle_dynamic(event, text)
+                handled = await self.memes.handle_dynamic(event, text, explicit=prefixed or woken)
             except (UserError, ToolMissing, UnsupportedPlatform, Busy) as exc:
                 await self._safe_reply(event, str(exc))
                 handled = True
@@ -285,22 +284,6 @@ class MultimodalApp:
                 saver()
         except Exception as exc:
             log.warning(f"[多模态处理器] 保存禁用群列表失败：{exc}")
-
-    def save_meme_config(self) -> None:
-        """把表情包黑名单写回图片处理配置，不写入 meme-generator 的全局配置。"""
-        try:
-            section = self.config.get("image")
-            if not isinstance(section, dict):
-                section = {}; self.config["image"] = section
-            box = section.get("meme")
-            if not isinstance(box, dict):
-                box = {}; section["meme"] = box
-            box["disabled_list"] = list(self.settings.meme.disabled_list)
-            box["group_disabled_map"] = list(self.settings.meme.group_disabled_map)
-            saver = getattr(self.config, "save_config", None)
-            if callable(saver): saver()
-        except Exception as exc:
-            log.warning(f"[多模态处理器] 保存表情包黑名单失败：{exc}")
 
 
 def _is_admin(event: Any) -> bool:
