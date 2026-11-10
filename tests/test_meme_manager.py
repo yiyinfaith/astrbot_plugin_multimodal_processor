@@ -1,4 +1,5 @@
 from io import BytesIO
+import sys
 from types import SimpleNamespace
 
 from PIL import Image
@@ -114,12 +115,97 @@ def test_output_suffix_follows_media_signature():
 
 
 # ------------------------------------------------------------ 触发
-def test_only_a_message_starting_with_the_keyword_triggers(make_app):
+def test_keyword_needs_a_boundary_on_both_sides(make_app):
     manager = manager_with(make_app(), py_meme("good_news", ["喜报"]), py_meme("play", ["一起玩"]))
     assert manager.match("喜报 好消息") == ("喜报", "好消息")
     assert manager.match("喜报") == ("喜报", "")
-    assert manager.match("今天 喜报 来了") is None, "句子中间出现关键词不能触发"
+    assert manager.match("今天 喜报") == ("喜报", "今天")
+    assert manager.match("今天 喜报 来了") == ("喜报", "今天 来了")
     assert manager.match("喜报来了") is None
+    assert manager.match("今天喜报") is None
+    assert manager.match("喜报123") is None
+
+
+def test_literal_at_token_is_a_boundary_and_not_text(make_app):
+    manager = manager_with(make_app(), py_meme("pet", ["摸"]))
+    assert manager.match("@小明摸") == ("摸", "")
+    assert manager.match("摸@小明") == ("摸", "")
+    assert manager.match("@小明 摸 你好") == ("摸", "你好")
+
+
+def test_longest_keyword_wins(make_app):
+    manager = manager_with(make_app(), py_meme("a", ["摸"]), py_meme("b", ["摸 摸头"]))
+    assert manager.match("摸 摸头 好") == ("摸 摸头", "好")
+
+
+def test_at_component_counts_as_space_but_image_does_not(make_app, tmp_path):
+    app = make_app()
+    manager_with(app, py_meme("pet", ["摸"]))
+    assert app.meme_text(FakeEvent([plain("你好"), comp("At", qq="2"), plain("摸")])) == "你好 摸"
+    path = tmp_path / "a.png"
+    Image.new("RGB", (8, 8)).save(path)
+    assert app.meme_text(FakeEvent([plain("你好"), image(path), plain("摸")])) == "你好摸"
+
+
+def test_at_glued_message_triggers_through_passive(make_app):
+    app = make_app()
+    stub_avatars(app)
+    meme = py_meme("pet", ["摸"], min_images=1, max_images=1)
+    manager_with(app, meme)
+    event = onebot_event([plain("今天"), comp("At", qq="2"), plain("摸")], is_at_or_wake_command=False)
+    run(app.handle_passive(event))
+    assert len(meme.calls) == 1 and app.sender.kinds() == ["image"]
+
+
+def test_prefixed_message_only_triggers_at_start(make_app):
+    app = make_app()
+    meme = py_meme("good_news", ["喜报"], max_texts=2)
+    manager_with(app, meme)
+    other = FakeEvent([plain("/别的指令 喜报")], message_str="别的指令 喜报")
+    run(app.handle_passive(other))
+    assert meme.calls == [] and not other.stopped
+    mine = FakeEvent([plain("/喜报 好")], message_str="喜报 好")
+    run(app.handle_passive(mine))
+    assert len(meme.calls) == 1
+
+
+def test_keyword_after_unprefixed_command_word_still_triggers(make_app):
+    app = make_app()
+    meme = py_meme("good_news", ["喜报"], max_texts=2)
+    manager_with(app, meme)
+    run(app.handle_passive(FakeEvent([plain("转换 喜报")], message_str="转换 喜报", is_at_or_wake_command=False)))
+    assert len(meme.calls) == 1
+
+
+def test_unknown_tag_falls_back_without_touching_files(make_app, tmp_path, monkeypatch):
+    package = tmp_path / "meme_generator"
+    (package / "memes").mkdir(parents=True)
+    tags_source = "class MemeTags:\n    known = {'已知'}\n"
+    (package / "tags.py").write_text(tags_source, encoding="utf-8")
+    (package / "__init__.py").write_text(
+        "from meme_generator.tags import MemeTags\n"
+        "class Meme:\n"
+        "    key = 'x'\n"
+        "    keywords = ['额外']\n"
+        "    tags = MemeTags.not_declared | MemeTags.known\n"
+        "def get_memes():\n"
+        "    return [Meme()]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in ("meme_generator", "meme_generator.tags"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    app = make_app({"image": {"meme": {"enable": True}}})
+    run(app.memes.initialize())
+    try:
+        assert app.memes.status.available, app.memes.status.reason
+        assert app.memes.memes[0].tags == {"已知"}
+        assert app.memes.match("额外") == ("额外", "")
+        assert (package / "tags.py").read_text(encoding="utf-8") == tags_source
+        assert not any(type(f).__name__ == "_TagsFinder" for f in sys.meta_path), "导入后要移除钩子"
+    finally:
+        for name in ("meme_generator", "meme_generator.tags"):
+            sys.modules.pop(name, None)
 
 
 def test_folder_name_is_not_a_trigger_but_can_be_looked_up(make_app):

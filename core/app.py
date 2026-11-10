@@ -148,10 +148,30 @@ class MultimodalApp:
         text = re.sub(r"\s+", " ", " ".join(parts)).strip()
         if not text:
             text = re.sub(r"\s+", " ", str(getattr(event, "message_str", "") or "")).strip()
+        return self._strip_wake_prefix(text)
+
+    def _strip_wake_prefix(self, text: str) -> tuple[str, bool]:
         for prefix in sorted((p for p in self._wake_prefixes() if p), key=len, reverse=True):
             if text.startswith(prefix):
                 return text[len(prefix):].strip(), True
         return text, False
+
+    def meme_text(self, event: Any) -> str:
+        """表情包关键词匹配用的文本：QQ 的 @ 等同一个空格，图片等其他消息段不构成分隔。"""
+        parts: list[str] = []
+        try:
+            for component in event.get_messages():
+                kind = component_type(component)
+                if kind == "plain":
+                    parts.append(str(getattr(component, "text", "") or ""))
+                elif kind == "at":
+                    parts.append(" ")
+        except Exception:
+            parts = []
+        text = re.sub(r"\s+", " ", "".join(parts)).strip()
+        if not text:
+            text = re.sub(r"\s+", " ", str(getattr(event, "message_str", "") or "")).strip()
+        return self._strip_wake_prefix(text)[0]
 
     @staticmethod
     def _astrbot_would_match(event: Any) -> bool:
@@ -186,13 +206,13 @@ class MultimodalApp:
         """
         text, prefixed = self.command_text(event)
         parsed = parse_command(text)
-        if parsed is None:
-            woken = bool(getattr(event, "is_at_or_wake_command", False))
+        woken = bool(getattr(event, "is_at_or_wake_command", False))
+        if parsed is None or not (prefixed or woken):
             meme_plain_allowed = self.settings.meme.enable and not self.settings.meme.need_prefix
             if not (prefixed or woken or meme_plain_allowed):
                 return
             try:
-                handled = await self.memes.handle_dynamic(event, text, explicit=prefixed or woken)
+                handled = await self.memes.handle_dynamic(event, self.meme_text(event), explicit=prefixed or woken, at_start_only=prefixed)
             except (UserError, ToolMissing, UnsupportedPlatform, Busy) as exc:
                 await self._safe_reply(event, str(exc))
                 handled = True
@@ -209,9 +229,6 @@ class MultimodalApp:
             return
         if self._astrbot_would_match(event):
             return  # 交给 @filter.command 注册的处理函数
-        woken = bool(getattr(event, "is_at_or_wake_command", False))
-        if not (prefixed or woken):
-            return
         await self.run(event, parsed, explicit=prefixed or woken)
 
     async def run(self, event: Any, parsed: ParsedCommand, *, explicit: bool) -> None:

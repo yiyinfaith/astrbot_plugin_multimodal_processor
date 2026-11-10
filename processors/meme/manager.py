@@ -10,9 +10,11 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import importlib
+from importlib.machinery import PathFinder, SourceFileLoader
 from io import BytesIO
 from pathlib import Path
 import re
+import sys
 from typing import Any, Awaitable, Callable, get_args
 
 from PIL import Image
@@ -34,6 +36,66 @@ class MemeInputError(UserError):
 
     没有带前缀或 @ 的普通聊天碰巧以关键词开头时，这类错误不回复，消息继续交给其他插件。
     """
+
+
+def _at_token(token: str) -> bool:
+    return token.startswith("@") and len(token) > 1
+
+
+def _left_boundary(value: str, index: int) -> bool:
+    """关键词左边是消息开头、空白，或紧贴一个 @xxx。"""
+    if index <= 0 or value[index - 1].isspace():
+        return True
+    return _at_token(value[:index].rsplit(None, 1)[-1])
+
+
+def _right_boundary(value: str, end: int) -> bool:
+    """关键词右边是消息结尾、空白，或紧贴一个 @xxx。"""
+    if end >= len(value) or value[end].isspace():
+        return True
+    return _at_token(value[end:].split(None, 1)[0])
+
+
+class _LenientTags(type):
+    """额外表情引用了 MemeTags 里没有的标签时返回空集合，不让它导入失败。"""
+
+    missing: set[str] = set()
+
+    def __getattr__(cls, name: str) -> set[str]:
+        if name.startswith("__"):
+            raise AttributeError(name)
+        _LenientTags.missing.add(name)
+        return set()
+
+
+class _TagsLoader(SourceFileLoader):
+    def exec_module(self, module: Any) -> None:
+        super().exec_module(module)
+        tags = getattr(module, "MemeTags", None)
+        if isinstance(tags, type) and not isinstance(tags, _LenientTags):
+            module.MemeTags = _LenientTags("MemeTags", (tags,), {})
+
+
+class _TagsFinder:
+    """只在导入 meme_generator 期间生效。表情在包初始化时就加载，所以要在导入时替换，不修改磁盘文件。"""
+
+    @staticmethod
+    def find_spec(name: str, path: Any = None, target: Any = None) -> Any:
+        if name != "meme_generator.tags":
+            return None
+        spec = PathFinder.find_spec(name, path, target)
+        if spec is not None and isinstance(spec.loader, SourceFileLoader):
+            spec.loader = _TagsLoader(spec.loader.name, spec.loader.path)
+        return spec
+
+
+def _import_package() -> Any:
+    finder = _TagsFinder()
+    sys.meta_path.insert(0, finder)
+    try:
+        return importlib.import_module("meme_generator")
+    finally:
+        sys.meta_path.remove(finder)
 
 
 @dataclass(slots=True)
@@ -60,11 +122,13 @@ class MemeManager:
             self.status.reason = "表情包生成未启用"
             return
         try:  # 加载上千个表情要几十秒，放进线程避免卡住 AstrBot
-            package = await asyncio.to_thread(importlib.import_module, "meme_generator")
+            package = await asyncio.to_thread(_import_package)
         except Exception as exc:
             self.status.reason = "未安装 meme-generator；请按 README 手动安装匹配版本"
             log.warning("[多模态处理器] %s: %s", self.status.reason, exc)
             return
+        if _LenientTags.missing:
+            log.info("[多模态处理器] 额外表情用到的 %d 个标签不在 tags.py 中，已自动兜底", len(_LenientTags.missing))
         self.package = package
         self.status.version = self._version(package)
         self.status.engine = "rust" if self._is_rust(package) else "python"
@@ -139,16 +203,25 @@ class MemeManager:
         lowered = keyword.strip().casefold()
         return self._keyword_map.get(lowered) or self._key_map.get(lowered)
 
-    def match(self, text: str) -> tuple[str, str] | None:
-        """整条消息必须以关键词开头（后面是空白或结束），返回 (关键词, 关键词之后的文字)。"""
+    def match(self, text: str, *, at_start_only: bool = False) -> tuple[str, str] | None:
+        """关键词左右都要有边界：空白、消息开头或结尾、@xxx。长词优先。
+
+        返回 (关键词, 去掉关键词和 @xxx 后的其余文字)。at_start_only 用于带唤醒前缀的消息，
+        这类消息的第一个词是指令名，关键词在后面时不抢其他插件的指令。
+        """
         value = text.strip()
-        if self.settings.extra_prefix:
-            if not value.startswith(self.settings.extra_prefix):
-                return None
-            value = value[len(self.settings.extra_prefix):].strip()
-        for keyword in self._keywords:  # 长词优先，兼容带空格的关键词
-            if value == keyword or value.startswith(keyword + " "):
-                return keyword, value[len(keyword):].strip()
+        prefix = self.settings.extra_prefix
+        for keyword in self._keywords:
+            token = prefix + keyword
+            index = value.find(token)
+            while index >= 0:
+                end = index + len(token)
+                if _left_boundary(value, index) and _right_boundary(value, end):
+                    if at_start_only and index:
+                        break
+                    rest = f"{value[:index]} {value[end:]}".split()
+                    return keyword, " ".join(t for t in rest if not _at_token(t))
+                index = value.find(token, index + 1)
         return None
 
     def search_pairs(self, text: str) -> list[tuple[str, str]]:
@@ -466,11 +539,11 @@ class MemeManager:
         except Exception:
             return data
 
-    async def handle_dynamic(self, event: Any, text: str, explicit: bool = True) -> bool:
+    async def handle_dynamic(self, event: Any, text: str, explicit: bool = True, at_start_only: bool = False) -> bool:
         """返回 True 表示已处理。explicit 为 False 表示普通聊天（没带前缀或 @）。"""
         if not self.status.available or not self.settings.enable:
             return False
-        matched = self.match(text)
+        matched = self.match(text, at_start_only=at_start_only)
         if not matched:
             return False
         keyword, rest = matched
