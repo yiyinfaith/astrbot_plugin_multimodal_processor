@@ -138,7 +138,7 @@ AstrBot 本地媒体工具插件：图片 / GIF、表情包生成、QQ 图片保
 
 ## Meme 表情包
 
-基于可选的 [meme-generator](https://github.com/MemeCrafters/meme-generator)，默认关闭。安装后在「图片处理 → Meme Generator 表情包」中启用，重载插件即可。Python 版和 Rust 版由插件自动识别，无需配置。
+基于可选的 [meme-generator](https://github.com/MemeCrafters/meme-generator)，默认关闭。安装后在「图片处理 → Meme Generator 表情包」中启用，重载插件即可。Python 版和 Rust 版由插件自动识别。
 
 ### 使用
 
