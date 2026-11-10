@@ -371,7 +371,7 @@ async def audio_speed(inv: Invocation) -> bool:
         raise UsageError("请填写倍率")
     factor = A.parse_float(inv.args[0], "倍率", 0.25, 4.0)
     extra = list(inv.args[1:])
-    if extra and extra[0] not in {"变调", "pitch"}:
+    if extra and extra[0].lower() not in {"变调", "pitch"}:
         raise UsageError(f"无法识别的参数：{extra[0]}")
     keep_pitch = not extra
     return await run_audio(inv, lambda job: audio_ops.speed(job, factor, keep_pitch))

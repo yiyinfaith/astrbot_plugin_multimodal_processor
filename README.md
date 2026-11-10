@@ -28,7 +28,7 @@ AstrBot 本地媒体工具插件：图片 / GIF、表情包生成、QQ 图片保
 
 **媒体来源**：引用一条带媒体的消息、随指令附带媒体或文件；图片指令还可以 `@某人` 处理对方的 QQ 头像。引用和附带同时存在时，引用优先。
 
-**触发**：指令必须带唤醒前缀（如 `/`）或 @ 机器人。QQ 回复别人时自动插入的 `@对方` 不影响识别。表情包关键词的触发规则见 [Meme 表情包](#meme-表情包)。
+**触发**：指令必须带唤醒前缀（如 `/`）或 @ 机器人，指令和参数里的英文不区分大小写，例如 `/MD引用`、`/md引用` 都可以。QQ 回复别人时自动插入的 `@对方` 不影响识别。表情包关键词的触发规则见 [Meme 表情包](#meme-表情包)。
 
 发送 `/多模态处理帮助` 查看全部指令，`/多模态处理帮助 视频` 查看分类，`/多模态处理帮助 视频裁剪` 查看单条用法。
 
@@ -202,6 +202,16 @@ sed -i -E 's/^(Requires-Dist: Pillow \(>=10\.0\.0),<1[12]\.0\.0\)/\1)/' .venv/li
 ### 添加额外表情
 
 **Python 版**：把需要的表情目录放进 `site-packages/meme_generator/memes/`，只合并目录，不要覆盖整个 `memes`。
+
+除上表的官方仓库外，还可以从以下社区仓库获取 Python 版表情：
+
+- [anyliew/meme_emoji](https://github.com/anyliew/meme_emoji)
+- [anyliew/crazy_emoji](https://github.com/anyliew/crazy_emoji)
+- [jinjiao007/meme-generator-jj](https://github.com/jinjiao007/meme-generator-jj)
+- [LRZ9712/tudou-meme](https://github.com/LRZ9712/tudou-meme)
+- [xiaoruange39/xiaoruan-meme](https://github.com/xiaoruange39/xiaoruan-meme)
+
+**部分表情包文件有误或相互冲突，需酌情修改后使用。**
 
 表情用到 `tags.py` 里没有的标签时，插件会自动兜底，无需修改 `tags.py`。单个表情加载失败不影响其他表情。**重装 meme-generator 可能覆盖 `memes`，操作前请先备份。**
 
