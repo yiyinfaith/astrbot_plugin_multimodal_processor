@@ -2,7 +2,7 @@ name: multimodal_processor
 display_name: 多模态处理器
 desc: 本地多模态文件处理：图片/GIF 变换、格式转换与动图工具、QQ 图片保存与外显修改、幻影坦克与光棱坦克、文本处理，以及基于 FFmpeg 的视频和音频处理
 short_desc: 图片/GIF/视频/音频本地处理、QQ 图片保存、幻影坦克、光棱坦克
-version: v1.0.2
+version: v1.0.1
 author: 一吟Faith
 logo: logo.png
 category: 工具
