@@ -29,6 +29,25 @@ def test_main_imports_and_registers_all_commands():
     assert len(handlers) == len(COMMANDS) + 1
 
 
+def test_listener_runs_before_proactive_reply_but_after_whitelist():
+    """表情包处理完要 stop_event，所以监听器必须排在判断决策插件的接话（1000～1100）前面。"""
+    import sys
+
+    from astrbot.core.star.star_handler import StarHandlerMetadata, star_handlers_registry
+
+    importlib.import_module("mmp.main")
+    listener = next(h for h in star_handlers_registry if h.handler_module_path == "mmp.main" and h.handler_name == "on_message")
+    priority = listener.extras_configs["priority"]
+    assert 1100 < priority < sys.maxsize - 2
+    # 与 AstrBot 自己的排序规则一致：优先级高的先执行
+    proactive = StarHandlerMetadata(
+        event_type=listener.event_type, handler_full_name="decision.proactive_reply", handler_name="proactive_reply",
+        handler_module_path="decision.main", handler=listener.handler, event_filters=[], extras_configs={"priority": 1000},
+    )
+    ordered = sorted([proactive, listener], key=lambda h: -h.extras_configs["priority"])
+    assert ordered[0] is listener
+
+
 def _dispatch_to_sessions(event) -> bool:
     """模拟 AstrBot 核心把消息交给等待中的会话（与 ProcessStage 的做法一致）。"""
     from astrbot.core.utils.session_waiter import FILTERS, USER_SESSIONS, SessionWaiter

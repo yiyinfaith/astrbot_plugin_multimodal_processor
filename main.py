@@ -17,6 +17,10 @@ from astrbot.core.utils.astrbot_path import get_astrbot_data_path, get_astrbot_t
 from .core.app import MultimodalApp
 
 PLUGIN_NAME = "multimodal_processor"
+# AstrBot 按优先级从高到低执行消息处理函数，stop_event 只拦得住排在后面的。表情包和「@某人 /指令」
+# 一旦处理就要先于主动接话等会调用 LLM 的监听器（如判断决策插件的 1000～1100），
+# 同时低于白名单（sys.maxsize）和 AstrBot 内置处理，让它们照常先生效。
+LISTENER_PRIORITY = 10000
 
 
 class MultimodalProcessor(Star):
@@ -45,10 +49,10 @@ class MultimodalProcessor(Star):
     async def terminate(self):
         await self.app.stop()
 
-    # ------------------------------------------------------------ @某人 + 指令
-    @filter.event_message_type(filter.EventMessageType.ALL)
+    # ------------------------------------------------------------ 表情包关键词、@某人 + 指令
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=LISTENER_PRIORITY)
     async def on_message(self, event: AstrMessageEvent):
-        """识别回复他人消息时 QQ 自动插入 @ 导致未被 AstrBot 唤醒的「/指令」"""
+        """表情包关键词触发，以及回复他人时 QQ 自动插入 @ 导致未被唤醒的「/指令」；处理后停止事件"""
         await self.app.handle_passive(event)
 
     # ------------------------------------------------------------ 帮助
