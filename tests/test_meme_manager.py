@@ -155,6 +155,7 @@ def test_at_glued_message_triggers_through_passive(make_app):
     event = onebot_event([plain("今天"), comp("At", qq="2"), plain("摸")], is_at_or_wake_command=False)
     run(app.handle_passive(event))
     assert len(meme.calls) == 1 and app.sender.kinds() == ["image"]
+    assert not event.stopped
 
 
 def test_prefixed_message_only_triggers_at_start(make_app):
@@ -339,7 +340,7 @@ def test_explicit_call_gets_a_friendly_error(make_app):
     event = FakeEvent([plain("/今天")], message_str="今天")
     run(app.handle_passive(event))
     assert len(app.sender.texts()) == 1 and "1 张图片" in app.sender.texts()[0]
-    assert event.stopped
+    assert not event.stopped, "回复后不停止事件，后续插件照常处理"
 
 
 def test_library_errors_are_translated(make_app):

@@ -203,6 +203,7 @@ class MultimodalApp:
         """处理 AstrBot 指令系统接不到的情况：QQ 回复他人时自动插入 @，导致「@某人 /指令」不被唤醒。
 
         插件自身的指令都必须带唤醒前缀（或 @ 机器人）才会触发；表情包关键词是否需要前缀由配置决定。
+        表情包发出后不停止事件：其他插件照常处理，AstrBot 看到已有回复不会再调用 LLM。
         """
         text, prefixed = self.command_text(event)
         parsed = parse_command(text)
@@ -212,20 +213,14 @@ class MultimodalApp:
             if not (prefixed or woken or meme_plain_allowed):
                 return
             try:
-                handled = await self.memes.handle_dynamic(event, self.meme_text(event), explicit=prefixed or woken, at_start_only=prefixed)
+                await self.memes.handle_dynamic(event, self.meme_text(event), explicit=prefixed or woken, at_start_only=prefixed)
             except (UserError, ToolMissing, UnsupportedPlatform, Busy) as exc:
                 await self._safe_reply(event, str(exc))
-                handled = True
             except asyncio.TimeoutError:
                 await self._safe_reply(event, "表情包生成超时，已清理临时文件。")
-                handled = True
             except Exception as exc:
                 log.exception(f"[多模态处理器] 表情包生成出错：{exc}")
                 await self._safe_reply(event, "表情包生成失败，请检查 meme-generator 版本和日志。")
-                handled = True
-            if handled:
-                try: event.stop_event()
-                except Exception: pass
             return
         if self._astrbot_would_match(event):
             return  # 交给 @filter.command 注册的处理函数

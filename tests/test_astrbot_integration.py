@@ -30,7 +30,7 @@ def test_main_imports_and_registers_all_commands():
 
 
 def test_listener_runs_before_proactive_reply_but_after_whitelist():
-    """表情包处理完要 stop_event，所以监听器必须排在判断决策插件的接话（1000～1100）前面。"""
+    """表情包发出后，判断决策插件的接话（110）要能看到已有回复，所以监听器必须排在它前面。"""
     import sys
 
     from astrbot.core.star.star_handler import StarHandlerMetadata, star_handlers_registry
@@ -38,11 +38,11 @@ def test_listener_runs_before_proactive_reply_but_after_whitelist():
     importlib.import_module("mmp.main")
     listener = next(h for h in star_handlers_registry if h.handler_module_path == "mmp.main" and h.handler_name == "on_message")
     priority = listener.extras_configs["priority"]
-    assert 1100 < priority < sys.maxsize - 2
+    assert 110 < priority < 130
     # 与 AstrBot 自己的排序规则一致：优先级高的先执行
     proactive = StarHandlerMetadata(
         event_type=listener.event_type, handler_full_name="decision.proactive_reply", handler_name="proactive_reply",
-        handler_module_path="decision.main", handler=listener.handler, event_filters=[], extras_configs={"priority": 1000},
+        handler_module_path="decision.main", handler=listener.handler, event_filters=[], extras_configs={"priority": 110},
     )
     ordered = sorted([proactive, listener], key=lambda h: -h.extras_configs["priority"])
     assert ordered[0] is listener
