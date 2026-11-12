@@ -11,7 +11,7 @@ async def show_help(inv: Invocation) -> bool:
     if query:
         text = help_for(query)
         if text is None:
-            text = f"没有找到「{query}」。可用分类：图片、表情包、QQ、幻影坦克、光棱、文本、视频、音频；也可以直接写指令名。"
+            text = f"没有找到「{query}」。可用分类：图片、表情包、QQ、幻影坦克、光棱、文本、视频、音频、消息；也可以直接写指令名。"
     else:
         ffmpeg_needed = inv.settings.video.enable or inv.settings.audio.enable
         text = help_overview(ffmpeg_ok=inv.app.ffmpeg.available or not ffmpeg_needed)

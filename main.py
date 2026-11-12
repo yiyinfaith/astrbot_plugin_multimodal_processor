@@ -445,3 +445,9 @@ class MultimodalProcessor(Star):
     async def cmd_audio_info(self, event: AstrMessageEvent):
         """查看音频格式、时长、码率"""
         await self.app.handle_command(event, "音频信息")
+
+    # ------------------------------------------------------------ 消息处理
+    @filter.command("消息")
+    async def cmd_message(self, event: AstrMessageEvent):
+        """消息处理：/消息 <文本|表情|骰子|猜拳|音乐|推荐|Markdown|@|转发|合并|模拟> [参数]"""
+        await self.app.handle_command(event, "消息")

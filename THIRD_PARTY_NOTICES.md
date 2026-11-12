@@ -56,6 +56,22 @@ SOFTWARE.
 - 使用范围：视频转动图的参数写法（时间段、抽帧、缩放）、GIF 加速 / 减速、精灵图合成、多图合成（含合并转发与 @ 头像）、GIF 分解、网格裁剪与边距、图片转线稿、表情包做旧的功能设计。实现已重写：视频转动图改用 FFmpeg 调色板滤镜（不再依赖 imageio），动图读写保留透明度与循环，线稿改用素描（颜色减淡）算法，做旧使用固定随机种子，网格切图对动图逐帧切割，并加入尺寸、帧数与下载安全限制。
 - 未包含：示例图片（`11/` 目录）。
 
+## astrbot_plugin_multimsg
+
+- 仓库：https://github.com/Zhalslar/astrbot_plugin_multimsg （2026-11 已无法访问，依据部署环境中留存的 v1.0.5 副本核对）
+- 作者：Zhalslar
+- 许可：不明确。副本 README 的徽章写 GPLv3，但随附的 LICENSE 是「Anti 996 License Version 1.0 (Draft)」，署名为另一个项目（HydroGest，2022-2023），上游仓库已无法核实作者的本意。Anti 996 许可在 AGPL-3.0 之外附加了劳动法合规等限制，与 AGPL-3.0 第 10 条「不得附加进一步限制」冲突。
+- 处理方式：本插件**没有复制**其任何代码，只参考公开的功能清单（文本、QQ 表情、骰子、猜拳、@、音乐卡片、Markdown、单条转发、合并转发节点），并按 OneBot v11 标准消息段和协议端公开接口独立实现（`handlers/message.py`、`processors/message/`、`platforms/qq.py`）。未保留其 `text`、`face`、`dice`、`at`、`music`、`md`、`node`、`forward` 等指令、默认 Markdown 文本和 logo。
+- 未包含：「@全体成员」在机器人不是管理员时逐个 @ 全部群员、无参数时 @ 最近发言的所有人，这两种做法容易造成骚扰，没有实现。
+
+## astrbot_plugin_SessionFaker
+
+- 仓库：https://github.com/advent259141/astrbot_plugin_SessionFaker
+- 作者：Jason.Joestar（advent259141）
+- 许可：GNU AGPL-3.0（仓库和 LICENSE 文件；README 末尾写的 MIT 与之不一致，以 LICENSE 为准），与本插件相同。
+- 使用范围：「QQ号 内容 | QQ号 内容」的模拟合并转发写法，以及图片归属所在段的规则。实现已重写：并入统一的 `/消息 模拟`，必须带唤醒前缀才触发；昵称改用协议端接口查询并缓存，不再请求第三方接口；支持 @某人、「我」、自定义昵称、与引用的真实消息组合；加入条数、字数、权限、禁止被模拟名单和「非真实聊天记录」标注。
+- 未包含：`伪造帮助` 指令（帮助并入 `/多模态处理帮助 消息`）。
+
 ## 光棱坦克原理
 
 - 参考：https://github.com/TankFactory/Mirage_Image 、https://github.com/TankFactory/Mirage_Decode （MIT）及其中引用的百度贴吧帖子「开个贴细说新式高科技坦克」

@@ -30,10 +30,9 @@ def _raw_rest(inv: Invocation) -> str:
     return text[1:] if text.startswith("\n") else text
 
 
-async def _source_text(inv: Invocation, rest: str) -> str:
-    if rest.strip():
-        return rest
-    for component in inv.event.get_messages():
+def quoted_text(event) -> str:
+    """引用消息的文字，没有时返回空字符串。"""
+    for component in event.get_messages():
         if component_type(component) == "reply":
             quoted = str(getattr(component, "message_str", "") or getattr(component, "text", "") or "")
             if not quoted:
@@ -44,6 +43,15 @@ async def _source_text(inv: Invocation, rest: str) -> str:
                 )
             if quoted.strip():
                 return quoted
+    return ""
+
+
+async def _source_text(inv: Invocation, rest: str) -> str:
+    if rest.strip():
+        return rest
+    quoted = quoted_text(inv.event)
+    if quoted:
+        return quoted
     limit = inv.settings.general.text_max_chars * 4
     for ref in collect_refs(inv.event):
         name = (ref.name or "").lower()

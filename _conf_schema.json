@@ -497,5 +497,170 @@
         "hint": "语音消息会被平台重新编码，无法下载原格式；文件保留格式但在 QQ 群里会进入群文件。"
       }
     }
+  },
+  "message": {
+    "description": "消息处理",
+    "type": "object",
+    "items": {
+      "enable": {
+        "description": "启用消息处理（/消息）",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后 /消息 的所有操作都不响应。除文本、骰子、猜拳外，其余操作只支持 QQ（OneBot v11）。"
+      },
+      "permission": {
+        "description": "谁可以使用 /消息",
+        "type": "string",
+        "default": "all",
+        "options": [
+          "all",
+          "group_admin",
+          "admin"
+        ],
+        "labels": [
+          "所有人",
+          "群主、群管理员和 Bot 管理员",
+          "仅 Bot 管理员"
+        ],
+        "hint": "群主、群管理员按 QQ 群身份判断；Bot 管理员是 AstrBot 配置里的管理员。下面单独设置的权限需要同时满足。"
+      },
+      "cooldown": {
+        "description": "每人冷却时间（秒）",
+        "type": "int",
+        "default": 3,
+        "hint": "两次 /消息 之间至少间隔多少秒，Bot 管理员不受限制；0 表示不限制。范围 0～600。"
+      },
+      "enable_send": {
+        "description": "启用基础消息：文本、表情、骰子、猜拳",
+        "type": "bool",
+        "default": true
+      },
+      "enable_card": {
+        "description": "启用卡片：音乐、推荐、Markdown",
+        "type": "bool",
+        "default": true,
+        "hint": "音乐卡片的签名由协议端完成；Markdown 依赖协议端支持，部分协议端会发送失败。"
+      },
+      "enable_at": {
+        "description": "启用 @（/消息 @）",
+        "type": "bool",
+        "default": true
+      },
+      "at_all_permission": {
+        "description": "谁可以 @全体成员",
+        "type": "string",
+        "default": "admin",
+        "options": [
+          "off",
+          "group_admin",
+          "admin"
+        ],
+        "labels": [
+          "禁止",
+          "群主、群管理员和 Bot 管理员",
+          "仅 Bot 管理员"
+        ],
+        "hint": "机器人本身也必须是群主或管理员。其他操作的内容里出现的 @全体成员 一律去掉。"
+      },
+      "enable_forward": {
+        "description": "启用转发（/消息 转发）",
+        "type": "bool",
+        "default": true
+      },
+      "cross_chat_permission": {
+        "description": "谁可以转发到其他群或私聊",
+        "type": "string",
+        "default": "admin",
+        "options": [
+          "off",
+          "admin",
+          "member"
+        ],
+        "labels": [
+          "禁止，只能转发到当前会话",
+          "仅 Bot 管理员",
+          "所有人（只能发到自己所在的群或自己的私聊）"
+        ],
+        "hint": "目标群必须是机器人已加入的群，私聊目标必须是机器人的好友。"
+      },
+      "enable_merge": {
+        "description": "启用合并真实消息（/消息 合并）",
+        "type": "bool",
+        "default": true
+      },
+      "enable_simulate": {
+        "description": "启用模拟对话（/消息 模拟）",
+        "type": "bool",
+        "default": true,
+        "hint": "按用户写的 QQ 号和内容生成合并转发，内容不代表真实聊天记录。"
+      },
+      "simulate_permission": {
+        "description": "谁可以使用模拟对话",
+        "type": "string",
+        "default": "all",
+        "options": [
+          "all",
+          "group_admin",
+          "admin"
+        ],
+        "labels": [
+          "所有人",
+          "群主、群管理员和 Bot 管理员",
+          "仅 Bot 管理员"
+        ]
+      },
+      "simulate_mark": {
+        "description": "模拟对话标注「非真实聊天记录」",
+        "type": "bool",
+        "default": true,
+        "hint": "开启时合并转发底部的摘要固定为「模拟对话，非真实聊天记录」，用户填写的摘要不生效。"
+      },
+      "protected_ids": {
+        "description": "禁止被模拟的 QQ 号",
+        "type": "list",
+        "default": [],
+        "hint": "除 Bot 管理员外，任何人都不能用这些 QQ 号生成模拟消息。"
+      },
+      "nickname_mode": {
+        "description": "转发节点的昵称",
+        "type": "string",
+        "default": "card",
+        "options": [
+          "card",
+          "nickname",
+          "id"
+        ],
+        "labels": [
+          "群名片优先",
+          "QQ 昵称",
+          "直接显示 QQ 号"
+        ],
+        "hint": "通过协议端查询并缓存 10 分钟，查询失败时显示 QQ 号。模拟对话里写了「QQ号:昵称」时以写的为准。"
+      },
+      "forward_title": {
+        "description": "合并转发默认标题",
+        "type": "string",
+        "default": "",
+        "hint": "留空时用协议端默认标题（如「群聊的聊天记录」）。可在指令里用「标题=…」临时指定；部分协议端不支持自定义标题。"
+      },
+      "max_nodes": {
+        "description": "合并转发最多条数",
+        "type": "int",
+        "default": 30,
+        "hint": "范围 1～100。"
+      },
+      "max_chars": {
+        "description": "单次内容最多字数",
+        "type": "int",
+        "default": 2000,
+        "hint": "文本、Markdown、模拟对话所有段的文字合计。范围 10～20000。"
+      },
+      "max_segments": {
+        "description": "单条消息最多表情 / @ / 图片数",
+        "type": "int",
+        "default": 20,
+        "hint": "范围 1～100。"
+      }
+    }
   }
 }

@@ -80,7 +80,7 @@ def test_help_texts_cover_everything():
     for spec in COMMANDS:
         assert f"/{spec.name}" in overview
         assert spec.summary in help_for(spec.name)
-    for word in ("图片", "QQ", "幻影坦克", "视频", "音频"):
+    for word in ("图片", "QQ", "幻影坦克", "视频", "音频", "消息"):
         assert help_for(word)
     assert "FFmpeg" in help_overview(ffmpeg_ok=False)
 
@@ -93,8 +93,8 @@ def test_media_commands_have_examples():
 def test_schema_matches_settings_dataclasses():
     schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
     names = setting_names()
-    assert list(schema) == ["general", "text", "image", "video", "audio"]
-    assert [schema[g]["description"] for g in schema] == ["通用设置", "文本处理", "图片处理", "视频处理", "音频处理"]
+    assert list(schema) == ["general", "text", "image", "video", "audio", "message"]
+    assert [schema[g]["description"] for g in schema] == ["通用设置", "文本处理", "图片处理", "视频处理", "音频处理", "消息处理"]
     assert set(schema) == set(names)
     defaults = Settings()
     def flatten(items, prefix=""):

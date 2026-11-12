@@ -28,8 +28,8 @@ from .log import log
 
 Handler = Callable[["Invocation"], Awaitable[bool]]
 
-_FEATURE_OF_CATEGORY = {"image": "image", "meme": "meme", "qq": "qq", "mirage": "mirage", "prism": "prism", "video": "video", "audio": "audio"}
-_FEATURE_NAMES = {"image": "图片", "meme": "表情包", "mirage": "幻影坦克", "prism": "光棱坦克", "video": "视频", "audio": "音频"}
+_FEATURE_OF_CATEGORY = {"image": "image", "meme": "meme", "qq": "qq", "mirage": "mirage", "prism": "prism", "video": "video", "audio": "audio", "message": "message"}
+_FEATURE_NAMES = {"image": "图片", "meme": "表情包", "mirage": "幻影坦克", "prism": "光棱坦克", "video": "视频", "audio": "音频", "message": "消息处理"}
 
 
 @dataclass(slots=True)
@@ -47,6 +47,11 @@ class Invocation:
     @property
     def args(self) -> tuple[str, ...]:
         return self.parsed.args
+
+    @property
+    def is_admin(self) -> bool:
+        """AstrBot 配置里的 Bot 管理员。"""
+        return _is_admin(self.event)
 
     @property
     def user_key(self) -> str:

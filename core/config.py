@@ -358,6 +358,59 @@ class AudioSettings:
         return self.max_mb * 1024 * 1024
 
 
+USER_LEVELS = {"all", "group_admin", "admin"}
+AT_ALL_LEVELS = {"off", "group_admin", "admin"}
+CROSS_CHAT_LEVELS = {"off", "admin", "member"}
+NICKNAME_MODES = {"card", "nickname", "id"}
+
+
+@dataclass(slots=True)
+class MessageSettings:
+    enable: bool = True
+    permission: str = "all"
+    cooldown: int = 3
+    enable_send: bool = True
+    enable_card: bool = True
+    enable_at: bool = True
+    at_all_permission: str = "admin"
+    enable_forward: bool = True
+    cross_chat_permission: str = "admin"
+    enable_merge: bool = True
+    enable_simulate: bool = True
+    simulate_permission: str = "all"
+    simulate_mark: bool = True
+    protected_ids: list[str] = field(default_factory=list)
+    nickname_mode: str = "card"
+    forward_title: str = ""
+    max_nodes: int = 30
+    max_chars: int = 2000
+    max_segments: int = 20
+
+    @classmethod
+    def load(cls, raw: dict) -> "MessageSettings":
+        return cls(
+            enable=_bool(raw.get("enable"), True),
+            permission=_choice(raw.get("permission"), "all", USER_LEVELS),
+            cooldown=_int(raw.get("cooldown"), 3, 0, 600),
+            enable_send=_bool(raw.get("enable_send"), True),
+            enable_card=_bool(raw.get("enable_card"), True),
+            enable_at=_bool(raw.get("enable_at"), True),
+            at_all_permission=_choice(raw.get("at_all_permission"), "admin", AT_ALL_LEVELS),
+            enable_forward=_bool(raw.get("enable_forward"), True),
+            cross_chat_permission=_choice(raw.get("cross_chat_permission"), "admin", CROSS_CHAT_LEVELS),
+            enable_merge=_bool(raw.get("enable_merge"), True),
+            enable_simulate=_bool(raw.get("enable_simulate"), True),
+            simulate_permission=_choice(raw.get("simulate_permission"), "all", USER_LEVELS),
+            simulate_mark=_bool(raw.get("simulate_mark"), True),
+            protected_ids=[x for x in _str_list(raw.get("protected_ids")) if x.isdigit()],
+            nickname_mode=_choice(raw.get("nickname_mode"), "card", NICKNAME_MODES),
+            forward_title=(_str(raw.get("forward_title"), "") if raw.get("forward_title") else "")[:40],
+            max_nodes=_int(raw.get("max_nodes"), 30, 1, 100),
+            max_chars=_int(raw.get("max_chars"), 2000, 10, 20000),
+            max_segments=_int(raw.get("max_segments"), 20, 1, 100),
+        )
+
+
 @dataclass(slots=True)
 class Settings:
     general: GeneralSettings = field(default_factory=GeneralSettings)
@@ -368,6 +421,7 @@ class Settings:
     video: VideoSettings = field(default_factory=VideoSettings)
     audio: AudioSettings = field(default_factory=AudioSettings)
     meme: MemeSettings = field(default_factory=MemeSettings)
+    message: MessageSettings = field(default_factory=MessageSettings)
 
     @classmethod
     def load(cls, config: Any | None) -> "Settings":
@@ -390,6 +444,7 @@ class Settings:
             video=VideoSettings.load(group("video")),
             audio=AudioSettings.load(group("audio")),
             meme=MemeSettings.load(_sub(image_raw, "meme")),
+            message=MessageSettings.load(group("message")),
         )
 
 
@@ -417,4 +472,5 @@ def setting_names() -> dict[str, dict[str, tuple[str, str]]]:
         "text": {f.name[5:]: ("general", f.name) for f in fields(GeneralSettings) if f.name.startswith("text_")},
         "video": {f.name: ("video", f.name) for f in fields(VideoSettings)},
         "audio": {f.name: ("audio", f.name) for f in fields(AudioSettings)},
+        "message": {f.name: ("message", f.name) for f in fields(MessageSettings)},
     }

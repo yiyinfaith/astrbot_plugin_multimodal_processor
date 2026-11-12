@@ -59,6 +59,7 @@ CATEGORIES: dict[str, str] = {
     "text": "文本",
     "video": "视频（需要 FFmpeg）",
     "audio": "音频（需要 FFmpeg）",
+    "message": "消息处理（QQ 为主）",
     "help": "帮助",
 }
 
@@ -238,6 +239,12 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec("音频静音", "audio_mute", "audio", "把指定时间段静音", "<开始> <结束>", ("/音频静音 3 5",)),
     CommandSpec("去除静音", "audio_desilence", "audio", "删除音频中的静音片段", "[阈值 dB，默认 -50] [最短静音秒数，默认 0.5]", ("/去除静音", "/去除静音 -40 1"), aliases={"音频去静音": ()}),
     CommandSpec("音频信息", "audio_info", "audio", "查看格式、时长、码率、采样率", examples=("/音频信息",)),
+    # ---------------- 消息处理 ----------------
+    CommandSpec(
+        "消息", "message", "message", "发送各类 QQ 消息、转发、合并转发和模拟对话", "<操作> [参数]",
+        ("/消息 骰子", "/消息 模拟 123456 你好 | 654321 你好呀", "引用一条消息发送 /消息 转发"),
+        "不写操作时显示全部操作；/多模态处理帮助 消息 模拟 查看某个操作的用法。",
+    ),
     # ---------------- 帮助 ----------------
     CommandSpec(
         "多模态处理帮助", "help", "help", "查看指令列表或某个指令的详细用法", "[分类 | 指令]",
@@ -287,9 +294,85 @@ def parse_command(text: str | None) -> ParsedCommand | None:
     return None
 
 
+@dataclass(frozen=True, slots=True)
+class MessageOp:
+    """/消息 的一个操作。feature 对应配置里的独立开关（enable_<feature>）。"""
+
+    name: str
+    feature: str
+    summary: str
+    usage: str = ""
+    examples: tuple[str, ...] = ()
+    detail: str = ""
+    qq_only: bool = True
+
+    def usage_text(self) -> str:
+        lines = [f"/消息 {self.name}{(' ' + self.usage) if self.usage else ''}  —  {self.summary}"]
+        if self.detail:
+            lines.append(self.detail)
+        if self.examples:
+            lines.append("示例：" + "；".join(self.examples))
+        return "\n".join(lines)
+
+
+SIMULATE_NOTICE = "模拟对话由使用者自行编写，不代表真实聊天记录；请勿用于冒充他人、伪造证据或传播谣言。"
+
+MESSAGE_OPS: tuple[MessageOp, ...] = (
+    MessageOp("文本", "send", "让机器人发送一段文字，可夹带 QQ 表情和图片", "<内容>", ("/消息 文本 大家好",),
+              "内容里的 @全体成员 会被去掉。其他平台只发送文字。", qq_only=False),
+    MessageOp("表情", "send", "发送 QQ 小黄脸表情", "[编号 | 起~止 | 随机] [数量]", ("/消息 表情 14 3", "/消息 表情 1~10", "/消息 表情"),
+              "不写编号时随机挑一个经典表情。"),
+    MessageOp("骰子", "send", "发送骰子魔法表情", examples=("/消息 骰子",), detail="其他平台改为文字掷骰。", qq_only=False),
+    MessageOp("猜拳", "send", "发送猜拳魔法表情", examples=("/消息 猜拳",), detail="其他平台改为文字出拳。", qq_only=False),
+    MessageOp("音乐", "card", "发送音乐分享卡片", "<qq | 网易云 | 酷狗 | 酷我 | 咪咕> <歌曲ID>", ("/消息 音乐 网易云 1495009565",),
+              "卡片签名由协议端完成，签名服务不可用时会发送失败。"),
+    MessageOp("推荐", "card", "发送好友或群推荐卡片", "[QQ号 | @某人 | 群 [群号]]", ("/消息 推荐 @某人", "/消息 推荐 群"),
+              "不写目标时推荐自己；「群」后面不写群号时推荐当前群。"),
+    MessageOp("Markdown", "card", "以合并转发的形式发送 Markdown 消息", "<内容>", ("/消息 Markdown # 标题\n正文",),
+              "没有内容时取引用消息的文字。依赖协议端支持，部分协议端会发送失败。"),
+    MessageOp("@", "at", "@ 群成员或全体成员", "<QQ号… | @某人… | 全体> [文字]", ("/消息 @ 123456 开会了", "/消息 @全体 今晚八点集合"),
+              "只能在群聊使用。@全体成员 需要配置允许的身份，机器人也必须是群主或管理员。"),
+    MessageOp("转发", "forward", "把引用的消息转发出去", "[群号… | @某人… | 我]", ("引用消息发送 /消息 转发", "引用消息发送 /消息 转发 123456", "引用消息发送 /消息 转发 我"),
+              "不写目标时转发到当前会话；@某人 是转发给对方私聊，「我」是转发给自己私聊。一次最多 5 个目标，"
+              "转发到其他会话需要配置允许，目标群必须是机器人所在的群，私聊目标必须是机器人的好友。"),
+    MessageOp("合并", "merge", "把真实聊天消息合并成一条合并转发", "[条数] [标题=…] [摘要=…]", ("引用消息发送 /消息 合并", "/消息 合并 10", "引用消息发送 /消息 合并 5 标题=名场面"),
+              "引用一条消息时：只写引用 → 合并这一条；写了条数 → 合并这一条及之前共 N 条。"
+              "没有引用时合并当前会话最近 N 条（默认 10 条，不含这条指令）。需要协议端支持读取历史消息。"),
+    MessageOp("模拟", "simulate", "按指定的 QQ 号和内容生成合并转发（模拟对话）", "[标题=…] QQ号 内容 | @某人 内容 | 我 内容",
+              ("/消息 模拟 123456 你好 | 654321:小明 你好呀", "/消息 模拟 我 看图[图片] | @某人 好看"),
+              "每段以 QQ 号、@某人 或「我」开头，可紧跟「:昵称」，段与段用 | 分隔；图片放在哪一段就属于哪条消息。"
+              "引用一条消息时，被引用的真实消息排在最前面。" + SIMULATE_NOTICE),
+)
+
+_OPS_LONGEST_FIRST = sorted(MESSAGE_OPS, key=lambda op: len(op.name), reverse=True)
+MESSAGE_HELP_WORDS = ("帮助",)
+
+
+def match_message_op(text: str) -> tuple[MessageOp | None, str]:
+    """识别 /消息 后面的操作名（不区分大小写，操作名后可以不加空格），返回 (操作, 其余文字)。"""
+    stripped = text.lstrip()
+    lowered = stripped.lower()
+    for op in _OPS_LONGEST_FIRST:
+        if lowered.startswith(op.name.lower()):
+            return op, stripped[len(op.name):]
+    return None, stripped
+
+
+def message_help() -> str:
+    spec = get_spec("消息")
+    lines = [f"【{CATEGORIES['message']}】/消息 {spec.usage}  —  {spec.summary}"]
+    lines.extend(f"/消息 {op.name}{(' ' + op.usage) if op.usage else ''}  —  {op.summary}" for op in MESSAGE_OPS)
+    lines.append("除文本、骰子、猜拳外只支持 QQ（OneBot v11）。/多模态处理帮助 消息 模拟 查看某个操作的详细用法。")
+    lines.append(SIMULATE_NOTICE)
+    return "\n".join(lines)
+
+
 def help_overview(ffmpeg_ok: bool = True) -> str:
     lines = ["多模态处理器 指令一览（/多模态处理帮助 <分类或指令> 查看详细用法）"]
     for key, title in CATEGORIES.items():
+        if key == "message":
+            lines.append(f"【{title}】/消息 " + " ".join(op.name for op in MESSAGE_OPS))
+            continue
         names = [f"/{s.name}" for s in COMMANDS if s.category == key]
         lines.append(f"【{title}】" + " ".join(names))
     lines.append(_SOURCE_HINT)
@@ -301,18 +384,28 @@ def help_overview(ffmpeg_ok: bool = True) -> str:
 
 _CATEGORY_KEYWORDS = {
     "图片": "image", "gif": "image", "动图": "image", "表情包": "meme", "meme": "meme", "qq": "qq", "转换": "qq",
-    "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "文本": "text", "文字": "text", "md": "text", "视频": "video", "音频": "audio", "帮助": "help",
+    "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "文本": "text", "文字": "text", "md": "text", "视频": "video", "音频": "audio", "消息": "message", "帮助": "help",
 }
 
 
 def help_for(query: str) -> str | None:
     query = query.strip().lstrip("/")
+    lowered = query.lower()
+    if lowered.startswith("消息") and query[2:].strip():  # 「消息 模拟」：某个操作的用法
+        op, rest = match_message_op(query[2:])
+        if op and not rest.strip():
+            return op.usage_text()
     spec = get_spec(query)
+    if spec and spec.category == "message":
+        return message_help()
     if spec:
         return spec.usage_text()
-    category = _CATEGORY_KEYWORDS.get(query.lower())
+    category = _CATEGORY_KEYWORDS.get(lowered)
+    if category == "message":
+        return message_help()
     if not category:
-        return None
+        op, rest = match_message_op(query)
+        return op.usage_text() if op and not rest.strip() else None
     lines = [f"【{CATEGORIES[category]}】"]
     for spec in COMMANDS:
         if spec.category == category:
