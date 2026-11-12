@@ -143,6 +143,24 @@ def qq_avatar_url(user_id: str) -> str:
 PlatformFetch = Callable[[Any, MediaRef, Path, int], Awaitable[Path | None]]
 
 
+def _local_sources(component: Any) -> set[Path]:
+    """消息组件里指向本机文件的路径（file / path / url，含 file:// 写法）。"""
+    paths: set[Path] = set()
+    for attr in ("file", "path", "url"):
+        value = str(getattr(component, attr, "") or "")
+        if not value or value.startswith(("http://", "https://", "base64://", "data:")):
+            continue
+        if value.startswith("file://"):
+            value = unquote(urlparse(value).path)
+            if os.name == "nt" and re.match(r"^/[A-Za-z]:", value):
+                value = value[1:]
+        try:
+            paths.add(Path(value).resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return paths
+
+
 class MediaResolver:
     def __init__(
         self,
@@ -284,13 +302,17 @@ class MediaResolver:
         try:
             await asyncio.to_thread(shutil.copyfile, converted, target)
         finally:
+            # 只删除 AstrBot 转换时新建的临时文件；本地语音会原路返回，那是协议端的缓存，不能删
             try:
-                if converted.resolve().parent != workdir.resolve():
+                if converted.resolve() not in _local_sources(ref.component) and converted.resolve().parent != workdir.resolve():
                     converted.unlink(missing_ok=True)
             except OSError:
                 pass
         path.unlink(missing_ok=True)
-        return target, sniff_file(target)
+        sniffed = sniff_file(target)
+        if sniffed.kind == SILK:
+            raise MediaError("无法解码 QQ 语音（SILK）")
+        return target, sniffed
 
     async def fetch_url(self, url: str, workdir: Path, max_bytes: int, name: str = "") -> MediaFile:
         ref = MediaRef(None, IMAGE, "avatar", name=name, url=url)

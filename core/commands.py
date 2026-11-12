@@ -384,7 +384,7 @@ def help_overview(ffmpeg_ok: bool = True) -> str:
 
 _CATEGORY_KEYWORDS = {
     "图片": "image", "gif": "image", "动图": "image", "表情包": "meme", "meme": "meme", "qq": "qq", "转换": "qq",
-    "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "文本": "text", "文字": "text", "md": "text", "视频": "video", "音频": "audio", "消息": "message", "帮助": "help",
+    "幻影坦克": "mirage", "幻影": "mirage", "光棱": "prism", "文本": "text", "文字": "text", "md": "text", "视频": "video", "音频": "audio", "消息": "message", "消息处理": "message", "帮助": "help",
 }
 
 

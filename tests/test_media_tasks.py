@@ -292,3 +292,31 @@ def test_sweep_removes_only_stale_unused_dirs(tmp_path):
     assert not stale.exists() and active.exists() and fresh.exists()
     manager.release_dir(active)
     assert not active.exists()
+
+
+def test_silk_decode_never_deletes_protocol_cache(tmp_path):
+    """AstrBot 对本地语音会原路返回；转换失败时不能删掉协议端缓存的原文件。"""
+    from mmp.core.errors import MediaError
+    from mmp.core.media import MediaRef, MediaResolver
+
+    cache = tmp_path / "cache" / "voice.silk"
+    cache.parent.mkdir()
+    cache.write_bytes(b"\x02#!SILK_V3" + b"\x00" * 64)
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    downloaded = workdir / "input"
+    downloaded.write_bytes(cache.read_bytes())
+
+    class Record:
+        type = "Record"
+        file = str(cache)
+        path = ""
+        url = ""
+
+        async def convert_to_file_path(self):
+            return str(cache)
+
+    resolver = MediaResolver([tmp_path])
+    with pytest.raises(MediaError, match="SILK"):
+        run(resolver._decode_silk(MediaRef(Record(), "audio", "message"), downloaded, workdir))
+    assert cache.exists()

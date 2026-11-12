@@ -431,3 +431,50 @@ def test_send_file_and_summary_share_send_message():
         assert event.bot.last("send_private_msg")["user_id"] == 10001 and event.bot.last("send_private_msg")["group_id"] == 42
         run(qq.send_image_with_summary(event, path, "[好耶]"))
         assert event.bot.last("send_group_msg")["message"][0]["data"]["summary"] == "[好耶]"
+
+
+# ---------------------------------------------------------------- 审计修复的回归测试
+def test_usage_errors_do_not_start_cooldown(make_app):
+    app = make_app({"message": {"cooldown": 60}})
+    send(app, qq_event([t("/消息 表情 abc")]))
+    assert "表情编号要写数字" in app.sender.texts()[-1]
+    bot = send(app, qq_event([t("/消息 骰子")]))  # 改正后马上重发不受冷却影响
+    assert "send_group_msg" in bot.actions()
+    bot = send(app, qq_event([t("/消息 骰子")]))  # 真正发出后才开始冷却
+    assert "操作太频繁" in app.sender.texts()[-1] and not bot.calls
+
+
+def test_contact_rejects_extra_targets(app):
+    for text in ("/消息 推荐 123456 789012", "/消息 推荐 群 123456 789012"):
+        bot = send(app, qq_event([t(text)]))
+        assert "一次只能推荐一个" in app.sender.texts()[-1] and not bot.calls
+
+
+def test_forward_reports_partial_failures(app):
+    responses = {"get_group_list": [{"group_id": 654321}], "get_friend_list": [{"user_id": 10001}],
+                 "forward_group_single_msg": RuntimeError("unknown action"), "get_msg": None}
+    bot = send(app, qq_event([REPLY, t("/消息 转发 654321 我")], admin=True, responses=responses))
+    assert "forward_friend_single_msg" in bot.actions()  # 第一个目标失败后继续转发
+    reply = app.sender.texts()[-1]
+    assert "已转发到：10001 的私聊" in reply and "转发失败：群 654321（读取不到这条消息的内容" in reply
+
+
+def test_text_drops_at_when_at_disabled(make_app):
+    app = make_app({"message": {"enable_at": False, "cooldown": 0}})
+    bot = send(app, qq_event([t("/消息 文本 你好 "), at(123456)]))
+    assert bot.last("send_group_msg")["message"] == [t("你好")]
+
+
+def test_at_all_unknown_bot_role(app):
+    responses = {"get_group_member_info": RuntimeError("timeout")}
+    send(app, qq_event([t("/消息 @全体 集合")], admin=True, responses=responses))
+    assert "无法确认机器人在本群的身份" in app.sender.texts()[-1]
+
+
+def test_huge_random_face_count_is_rejected_before_generating():
+    with pytest.raises(ValueError, match="最多"):
+        nd.face_ids(None, 10**12, 20)
+
+
+def test_help_keyword_message_processing():
+    assert help_for("消息处理").startswith("【消息处理")

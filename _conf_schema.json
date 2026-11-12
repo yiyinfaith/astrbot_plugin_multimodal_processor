@@ -544,7 +544,8 @@
       "enable_at": {
         "description": "启用 @（/消息 @）",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "关闭后 /消息 文本 里的 @ 也会被去掉。"
       },
       "at_all_permission": {
         "description": "谁可以 @全体成员",

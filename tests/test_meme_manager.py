@@ -336,7 +336,7 @@ def test_plain_chat_with_missing_params_is_silent_and_not_stopped(make_app):
 
 def test_explicit_call_gets_a_friendly_error(make_app):
     app = make_app()
-    manager = manager_with(app, py_meme("m", ["今天"], min_images=1, max_images=1))
+    manager_with(app, py_meme("m", ["今天"], min_images=1, max_images=1))
     event = FakeEvent([plain("/今天")], message_str="今天")
     run(app.handle_passive(event))
     assert len(app.sender.texts()) == 1 and "1 张图片" in app.sender.texts()[0]

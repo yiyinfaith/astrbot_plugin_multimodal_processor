@@ -31,8 +31,6 @@ def test_main_imports_and_registers_all_commands():
 
 def test_listener_runs_before_proactive_reply_but_after_whitelist():
     """表情包发出后，判断决策插件的接话（110）要能看到已有回复，所以监听器必须排在它前面。"""
-    import sys
-
     from astrbot.core.star.star_handler import StarHandlerMetadata, star_handlers_registry
 
     importlib.import_module("mmp.main")

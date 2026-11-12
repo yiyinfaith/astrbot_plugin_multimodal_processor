@@ -57,13 +57,17 @@ def _check_cooldown(inv: Invocation) -> None:
     seconds = inv.settings.message.cooldown
     if seconds <= 0 or inv.is_admin:
         return
-    now = time.monotonic()
     last = _last_use.get(inv.user_key)
-    if last is not None and now - last < seconds:
-        raise UserError(f"操作太频繁，请 {seconds - int(now - last)} 秒后再试")
+    elapsed = time.monotonic() - last if last is not None else seconds
+    if elapsed < seconds:
+        raise UserError(f"操作太频繁，请 {seconds - int(elapsed)} 秒后再试")
+
+
+def _mark_used(inv: Invocation) -> None:
+    """只在真正发出消息后开始冷却，参数写错时可以马上改正重发。"""
     if len(_last_use) > 1000:
         _last_use.clear()
-    _last_use[inv.user_key] = now
+    _last_use[inv.user_key] = time.monotonic()
 
 
 def _segments(inv: Invocation, words: list[str]) -> list[dict]:
@@ -110,6 +114,7 @@ async def message(inv: Invocation) -> bool:
     segs = _segments(inv, words)
     async with inv.app.tasks.task(inv.user_key, heavy=False, label="message"):
         await inv.run_timed(_guard(op, inv, segs))
+    _mark_used(inv)
     return True
 
 
@@ -130,6 +135,8 @@ async def _guard(op: MessageOp, inv: Invocation, segs: list[dict]) -> None:
 async def op_text(op: MessageOp, inv: Invocation, segs: list[dict]) -> None:
     if qq.is_onebot(inv.event):
         content = nd.clean(segs, qq.sendable_segment)
+        if not inv.settings.message.enable_at:  # 关闭 @ 后，文本里也不能 @ 人
+            content = nd.trim([seg for seg in content if seg.get("type") != "at"])
         if not content:
             raise _usage(op, "请写上要发送的内容")
         _check_size(op, inv, [content])
@@ -200,7 +207,9 @@ async def op_contact(op: MessageOp, inv: Invocation, segs: list[dict]) -> None:
         kind, target = "qq", tokens[0]
     else:
         kind, target = "qq", str(event.get_sender_id())
-    if not re.fullmatch(r"\d{5,12}", target) or len(tokens) > 2:
+    if len(tokens) > (2 if kind == "group" else 1) or (ats and tokens):
+        raise _usage(op, "一次只能推荐一个好友或群")
+    if not re.fullmatch(r"\d{5,12}", target):
         raise _usage(op, "QQ 号或群号要写 5～12 位数字")
     await qq.send_message(event, [{"type": "contact", "data": {"type": kind, "id": target}}])
 
@@ -285,6 +294,8 @@ async def _check_at_all(inv: Invocation, group_id: str) -> None:
     if not await _allowed(inv, level):
         raise UserError(f"只有{LEVEL_NAMES[level]}可以 @全体成员")
     role = await qq.member_role(inv.event, group_id, inv.event.get_self_id())
+    if role is None:
+        raise UserError("无法确认机器人在本群的身份，已取消 @全体成员")
     if role not in {"owner", "admin"}:
         raise UserError("机器人不是群主或管理员，无法 @全体成员")
     try:  # NapCat / SnowLuma 的扩展接口；不支持时跳过
@@ -337,8 +348,10 @@ async def op_forward(op: MessageOp, inv: Invocation, segs: list[dict]) -> None:
         try:
             await qq.forward_single(event, rid, **({"group_id": target} if kind == "group" else {"user_id": target}))
             done.append(label)
-        except (UserError, UnsupportedPlatform):
+        except UnsupportedPlatform:
             raise
+        except UserError as exc:  # 例如原消息已过期：记为失败，继续转发其他目标
+            failed.append(f"{label}（{exc}）")
         except Exception as exc:
             log.warning(f"[多模态处理器] 转发到 {label} 失败：{exc!r}")
             failed.append(f"{label}（{_describe(exc)}）")

@@ -228,11 +228,10 @@ def face_ids(spec: str | None, count: int, limit: int, rng: random.Random | None
     rng = rng or random.Random()
     if count < 1:
         raise ValueError("数量至少为 1")
+    if count > limit:  # 先检查再生成，避免超大数量占满内存
+        raise ValueError(f"一次最多发送 {limit} 个表情")
     if not spec or spec == "随机":
-        ids = [rng.choice(COMMON_FACES) for _ in range(count)]
-        if len(ids) > limit:
-            raise ValueError(f"一次最多发送 {limit} 个表情")
-        return ids
+        return [rng.choice(COMMON_FACES) for _ in range(count)]
     match = re.fullmatch(r"(\d{1,4})\s*[~～\-]\s*(\d{1,4})", spec)
     if match:
         start, end = sorted((int(match.group(1)), int(match.group(2))))

@@ -15,7 +15,7 @@ from io import BytesIO
 from pathlib import Path
 import re
 import sys
-from typing import Any, Awaitable, Callable, get_args
+from typing import Any, Callable, get_args
 
 from PIL import Image
 
