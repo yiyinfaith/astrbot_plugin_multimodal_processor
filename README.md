@@ -253,6 +253,8 @@ sed -i -E 's/^(Requires-Dist: Pillow \(>=10\.0\.0),<1[12]\.0\.0\)/\1)/' .venv/li
 - [jinjiao007/meme-generator-jj](https://github.com/jinjiao007/meme-generator-jj)
 - [LRZ9712/tudou-meme](https://github.com/LRZ9712/tudou-meme)
 - [xiaoruange39/xiaoruan-meme](https://github.com/xiaoruange39/xiaoruan-meme)
+- [AIGC-Yunzai/meme-generator-cute](https://github.com/AIGC-Yunzai/meme-generator-cute)
+- [jiang068/meme2](https://github.com/jiang068/meme2)
 - [Memes02/meme-generator](https://github.com/Memes02/meme-generator)
 
 **部分表情包文件有误或相互冲突，需酌情修改后使用。**
