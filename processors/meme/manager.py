@@ -413,6 +413,7 @@ class MemeManager:
         config = getattr(getattr(package, "config", None), "meme", None)
         if memes_dir is not None and memes_dir.is_dir() and getattr(config, "load_builtin_memes", True):
             importlib.invalidate_caches()
+            added: list[str] = []
             for path in health.meme_dirs(memes_dir):
                 module = health.module_name(path)
                 if module in sys.modules:
@@ -423,9 +424,11 @@ class MemeManager:
                 package.load_meme(module)  # 导入失败由 meme-generator 自己记录日志
                 if module in sys.modules:
                     self._failed_modules.pop(module, None)
-                    log.info(f"[多模态处理器] 加载了新表情目录：{path.name}")
+                    added.append(path.name)
                 else:
                     self._failed_modules[module] = mtime
+            if added:  # 汇总成一行，不刷屏
+                log.info(f"[多模态处理器] 加载了 {len(added)} 个新表情目录：{health.names(added)}")
 
         def alive(meme: Any) -> bool:
             module = str(getattr(getattr(meme, "function", None), "__module__", "") or "")

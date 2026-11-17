@@ -976,3 +976,20 @@ def test_check_health_reports_keyword_conflicts(make_app, tmp_path, monkeypatch)
     assert any("「ok」ok 生效，dup 不会被触发" in m for m in errors)
     assert any("无法用关键词触发：dup" in m for m in errors)
     assert any("表情包列表" in m for m in log.levels("warning"))
+
+
+def test_new_folders_are_logged_in_one_line(make_app, tmp_path, monkeypatch):
+    app, manager, memes_dir, loads, log = health_app(make_app, tmp_path, monkeypatch, dirs=("ok", *(f"new{i}" for i in range(30))))
+
+    def load_meme(module):
+        sys.modules[module] = SimpleNamespace()
+        loads.append(module)
+
+    manager.package.load_meme = load_meme
+    try:
+        run(manager._rescan())
+    finally:
+        for i in range(30):
+            sys.modules.pop(f"meme_generator.memes.new{i}", None)
+    infos = [m for m in log.levels("info") if "新表情目录" in m]
+    assert len(loads) == 30 and len(infos) == 1 and "30 个" in infos[0] and "等 30 个" in infos[0]
