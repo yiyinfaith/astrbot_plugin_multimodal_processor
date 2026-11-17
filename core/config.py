@@ -152,6 +152,7 @@ class MemeSettings:
     """meme-generator 运行时设置，不在主 requirements 中强制重装。"""
 
     enable: bool = False
+    check_resources: bool = True
     need_prefix: bool = False
     extra_prefix: str = ""
     compress_image: bool = True
@@ -163,6 +164,7 @@ class MemeSettings:
     def load(cls, raw: dict) -> "MemeSettings":
         return cls(
             enable=_bool(raw.get("enable"), False),
+            check_resources=_bool(raw.get("check_resources"), True),
             need_prefix=_bool(raw.get("need_prefix"), False),
             extra_prefix=_str(raw.get("extra_prefix"), "") if raw.get("extra_prefix") else "",
             compress_image=_bool(raw.get("compress_image"), True),

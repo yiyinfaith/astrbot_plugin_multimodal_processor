@@ -29,6 +29,7 @@ from ...core.log import log
 from ...core.media import IMAGE as IMAGE_REF, MediaRef, at_targets, collect_refs, component_type, qq_avatar_url
 from ...platforms import qq
 from ..gif import frames as fr
+from . import health
 
 _TRUE_WORDS = {"true", "1", "yes", "on"}
 _FALSE_WORDS = {"false", "0", "no", "off"}
@@ -143,6 +144,8 @@ class MemeManager:
         self._key_map: dict[str, Any] = {}
         self.list_dir = Path(app.data_dir) / "meme_list"
         self._list_lock = asyncio.Lock()
+        self._scan_lock = asyncio.Lock()
+        self._failed_modules: dict[str, float] = {}  # 本次加载中导入失败的目录 -> 当时的修改时间
         self._list_tasks: set[asyncio.Task] = set()
 
     async def initialize(self) -> None:
@@ -153,7 +156,7 @@ class MemeManager:
             package = await asyncio.to_thread(_import_package)
         except Exception as exc:
             self.status.reason = "未安装 meme-generator；请按 README 手动安装匹配版本"
-            log.warning("[多模态处理器] %s: %s", self.status.reason, exc)
+            log.error(f"[多模态处理器] 表情包功能不可用：{self.status.reason}（{type(exc).__name__}: {exc}）")
             return
         if _LenientTags.missing:
             log.info("[多模态处理器] 额外表情用到的 %d 个标签不在 tags.py 中，已自动兜底", len(_LenientTags.missing))
@@ -166,6 +169,7 @@ class MemeManager:
             self.status.available = bool(self.memes)
             if not self.memes:
                 self.status.reason = "meme-generator 没有加载到任何表情包"
+                log.error(f"[多模态处理器] 表情包功能不可用：{self.status.reason}，请检查表情目录和素材")
         except Exception as exc:
             self.status.reason = f"读取 meme-generator 表情包失败：{exc}"
             log.exception("[多模态处理器] meme-generator 初始化失败")
@@ -409,13 +413,19 @@ class MemeManager:
         config = getattr(getattr(package, "config", None), "meme", None)
         if memes_dir is not None and memes_dir.is_dir() and getattr(config, "load_builtin_memes", True):
             importlib.invalidate_caches()
-            for path in sorted(memes_dir.iterdir()):
-                if path.name.startswith(("_", ".")) or not (path.is_dir() or path.suffix == ".py"):
+            for path in health.meme_dirs(memes_dir):
+                module = health.module_name(path)
+                if module in sys.modules:
                     continue
-                module = f"meme_generator.memes.{path.stem if path.is_file() else path.name}"
-                if module not in sys.modules:
-                    log.info("[多模态处理器] 发现新表情：%s", path.name)
-                    package.load_meme(module)  # 导入失败由 meme-generator 自己记录日志
+                mtime = _mtime(path)
+                if self._failed_modules.get(module) == mtime:
+                    continue  # 已经失败过且没有改动，不重复导入、不重复刷报错
+                package.load_meme(module)  # 导入失败由 meme-generator 自己记录日志
+                if module in sys.modules:
+                    self._failed_modules.pop(module, None)
+                    log.info(f"[多模态处理器] 加载了新表情目录：{path.name}")
+                else:
+                    self._failed_modules[module] = mtime
 
         def alive(meme: Any) -> bool:
             module = str(getattr(getattr(meme, "function", None), "__module__", "") or "")
@@ -429,14 +439,78 @@ class MemeManager:
     async def _rescan(self) -> None:
         if self.package is None or self.status.engine != "python" or not hasattr(self.package, "load_meme"):
             return
-        try:
-            memes = await asyncio.to_thread(self._rescan_python)
-        except Exception as exc:
-            log.warning("[多模态处理器] 重新扫描表情包失败：%s", exc)
-            return
-        if memes:
-            self.memes = memes
-            self._rebuild_index()
+        async with self._scan_lock:
+            try:
+                memes = await asyncio.to_thread(self._rescan_python)
+            except Exception as exc:
+                log.warning(f"[多模态处理器] 重新扫描表情包失败：{exc}")
+                return
+            if memes:
+                self.memes = memes
+                self._rebuild_index()
+
+    # ------------------------------------------------------------ 资源检查
+    async def _official_resource_list(self) -> list[dict]:
+        """从 meme-generator 配置的镜像下载当前版本的官方素材清单（只读，不下载素材本身）。"""
+        import aiohttp
+
+        resource = getattr(getattr(self.package, "config", None), "resource", None)
+        single = getattr(resource, "resource_url", None)
+        urls = [single] if single else list(getattr(resource, "resource_urls", None) or [])
+        if not urls:
+            raise RuntimeError("meme-generator 没有配置素材地址")
+        errors = []
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+            for base in urls:
+                url = f"{base}v{self.status.version}/resources/resource_list.json"
+                try:
+                    async with session.get(url) as resp:
+                        resp.raise_for_status()
+                        data = json.loads(await resp.read())
+                    if isinstance(data, list):
+                        return data
+                    errors.append(f"{base} 返回的格式不对")
+                except Exception as exc:
+                    errors.append(f"{base} {type(exc).__name__}")
+        raise RuntimeError("所有镜像都不可用（" + "；".join(errors[:3]) + "）")
+
+    async def check_health(self) -> health.HealthReport:
+        """检查表情是否都加载成功、官方素材是否齐全、有没有中文字体，结果打印到控制台。"""
+        await self._rescan()  # 先加载新增的目录，避免把还没加载的目录当成失败
+        report = health.HealthReport(engine=self.status.engine, version=self.status.version, loaded=len(self.memes))
+        entries = [(self._key(meme), self._keywords_for(meme)) for meme in self.memes]
+        report.keyword_conflicts = health.keyword_conflicts(entries)
+        report.unreachable = health.unreachable_memes(entries)
+        from ...core.commands import COMMANDS
+
+        report.command_clashes = health.command_clashes(
+            (k for _, kws in entries for k in kws), (name for spec in COMMANDS for name in spec.all_names),
+        )
+        memes_dir = self._builtin_memes_dir()
+        if self.status.engine == "python" and memes_dir is not None and memes_dir.is_dir():
+            report.failed_dirs, report.empty_dirs = await asyncio.to_thread(health.scan_dirs, memes_dir, self.memes)
+            try:
+                resource_list = await self._official_resource_list()
+            except Exception as exc:
+                report.official_error = str(exc) or type(exc).__name__
+            else:
+                report.missing, report.modified, report.official_checked = await asyncio.to_thread(
+                    health.compare_official, memes_dir, resource_list,
+                )
+            report.font_checked, report.font = await asyncio.to_thread(health.find_cjk_font)
+        health.log_report(report, log)
+        return report
+
+    def _start_background(self, coro_factory: Callable[[], Any], delay: float) -> asyncio.Task:
+        async def runner() -> Any:
+            if delay:
+                await asyncio.sleep(delay)
+            return await coro_factory()
+
+        task = asyncio.create_task(runner())
+        self._list_tasks.add(task)
+        task.add_done_callback(self._list_task_done)
+        return task
 
     async def refresh_list(self, *, force: bool) -> ListRefresh:
         """检查表情包资源是否有更新，有更新（或还没有图片）时重新渲染列表；force 时总是重新渲染。"""
@@ -470,28 +544,55 @@ class MemeManager:
     def start_list_refresh(self, *, force: bool, delay: float = 0) -> asyncio.Task:
         """在后台检查并渲染列表。返回的任务被取消或等待超时都不影响渲染继续进行（插件停止时除外）。"""
 
-        async def runner() -> ListRefresh:
-            if delay:
-                await asyncio.sleep(delay)
+        async def refresh() -> ListRefresh:
             result = await self.refresh_list(force=force)
             if result.rendered:
-                log.info("[多模态处理器] 表情包列表已重新渲染（%d 个表情，用时 %.1f 秒）", result.count, result.seconds)
+                log.info(f"[多模态处理器] 表情包列表已重新渲染（{result.count} 个表情，用时 {result.seconds:.1f} 秒）")
             return result
 
-        task = asyncio.create_task(runner())
-        self._list_tasks.add(task)
-        task.add_done_callback(self._list_task_done)
-        return task
+        return self._start_background(refresh, delay)
 
     def _list_task_done(self, task: asyncio.Task) -> None:
         self._list_tasks.discard(task)
         if not task.cancelled() and task.exception() is not None:
-            log.warning("[多模态处理器] 表情包列表后台任务出错：%s", task.exception())
+            log.warning(f"[多模态处理器] 表情包后台任务出错：{task.exception()!r}")
 
-    def schedule_list_refresh(self) -> None:
-        """安装或重载插件之后（不是加载过程中）检查资源更新，并在需要时重新渲染列表。"""
-        if self.status.available and self.settings.enable:
-            self.start_list_refresh(force=False, delay=LIST_REFRESH_DELAY)
+    def start_loading(self) -> None:
+        """不阻塞 AstrBot：插件的 initialize 立即返回，导入 meme-generator、资源检查和列表渲染都在后台进行。
+
+        AstrBot 启动时逐个等待插件初始化，导入上千个表情要好几秒，放在后台才不会拖慢其他插件加载。
+        任何一步出错都只写日志，不会影响 AstrBot 启动。"""
+        if self.settings.enable:
+            self.status.reason = "表情包正在加载，请稍后再试"
+        self._start_background(self._load_then_check, 0)
+
+    async def _load_then_check(self) -> None:
+        try:
+            await self.initialize()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # initialize 已处理常见错误，这里兜底
+            self.status.available = False
+            self.status.reason = f"加载 meme-generator 出错：{exc}"
+            log.error(f"[多模态处理器] 表情包功能不可用：{self.status.reason}")
+            return
+        self.schedule_background()
+
+    async def _safe_check_health(self) -> None:
+        try:
+            await self.check_health()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.error(f"[多模态处理器] 表情包资源检查出错：{type(exc).__name__}: {exc}")
+
+    def schedule_background(self) -> None:
+        """加载完成后（不是加载过程中）在后台检查资源，并在需要时重新渲染列表。"""
+        if not (self.status.available and self.settings.enable):
+            return
+        if self.settings.check_resources:
+            self._start_background(self._safe_check_health, LIST_REFRESH_DELAY)
+        self.start_list_refresh(force=False, delay=LIST_REFRESH_DELAY)
 
     async def stop(self) -> None:
         tasks = list(self._list_tasks)
@@ -743,6 +844,13 @@ class MemeManager:
                 raise
             return False
         return True
+
+
+def _mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def _span(low: int, high: int) -> str:

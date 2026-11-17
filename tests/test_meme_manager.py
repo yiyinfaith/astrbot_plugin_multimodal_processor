@@ -629,32 +629,89 @@ def test_manual_refresh_is_admin_only(make_app):
     assert "管理员" in app.sender.texts()[0] and renders == []
 
 
-def test_start_schedules_refresh_after_loading(make_app, monkeypatch):
-    """start() 立即返回，渲染在之后的后台任务里进行；停止插件时取消。"""
+async def drain(manager):
+    while manager._list_tasks:
+        await asyncio.gather(*list(manager._list_tasks), return_exceptions=True)
+
+
+def test_start_returns_immediately_and_loads_in_background(make_app, monkeypatch):
+    """AstrBot 逐个等待插件 initialize：导入表情、检查、渲染都不能卡在 start() 里。"""
+    import time
     import mmp.processors.meme.manager as mod
 
     monkeypatch.setattr(mod, "LIST_REFRESH_DELAY", 0)
     app, manager, renders = list_app(make_app)
+    checks = []
+
+    async def initialize():
+        await asyncio.sleep(0.5)
+
+    async def check():
+        checks.append(1)
+
+    manager.initialize = initialize
+    manager.check_health = check
 
     async def scenario():
-        async def initialize():
-            pass
-
-        manager.initialize = initialize
+        started = time.monotonic()
         await app.start()
-        assert renders == [] and manager._list_tasks, "加载过程中不渲染"
-        await asyncio.gather(*manager._list_tasks)
-        assert renders == [1] and manager.cached_list() is not None
+        assert time.monotonic() - started < 0.3, "start() 不应等待表情包加载"
+        assert "正在加载" in manager.status.reason and renders == []
+        await drain(manager)
+        assert renders == [1] and checks == [1] and manager.cached_list() is not None
         await app.stop()
 
     run(scenario())
+
+
+def test_load_errors_never_reach_astrbot(make_app, monkeypatch):
+    import mmp.processors.meme.manager as mod
+
+    monkeypatch.setattr(mod, "LIST_REFRESH_DELAY", 0)
+    log = RecordingLog()
+    monkeypatch.setattr(mod, "log", log)
+    app, manager, renders = list_app(make_app)
+
+    async def broken_init():
+        raise RuntimeError("坏掉的表情")
+
+    manager.initialize = broken_init
+
+    async def scenario():
+        await app.start()  # 不抛出
+        await drain(manager)
+
+    run(scenario())
+    assert not manager.status.available and "坏掉的表情" in manager.status.reason and renders == []
+    assert any("坏掉的表情" in m for m in log.levels("error"))
+
+
+def test_health_check_crash_is_logged_and_list_still_renders(make_app, monkeypatch):
+    import mmp.processors.meme.manager as mod
+
+    monkeypatch.setattr(mod, "LIST_REFRESH_DELAY", 0)
+    log = RecordingLog()
+    monkeypatch.setattr(mod, "log", log)
+    app, manager, renders = list_app(make_app)
+
+    async def crash():
+        raise ValueError("清单格式错误")
+
+    manager.check_health = crash
+
+    async def scenario():
+        manager.schedule_background()
+        await drain(manager)
+
+    run(scenario())
+    assert renders == [1] and any("资源检查出错" in m and "清单格式错误" in m for m in log.levels("error"))
 
 
 def test_stop_cancels_pending_refresh(make_app):
     app, manager, renders = list_app(make_app)
 
     async def scenario():
-        manager.schedule_list_refresh()
+        manager.schedule_background()
         assert manager._list_tasks
         await manager.stop()
         assert not manager._list_tasks and renders == []
@@ -720,3 +777,202 @@ def test_list_timeout_keeps_rendering_in_background(make_app):
         assert manager.cached_list() is not None
 
     run(scenario())
+
+
+# ------------------------------------------------------------ 资源检查
+from mmp.processors.meme import health  # noqa: E402
+
+
+class RecordingLog:
+    def __init__(self):
+        self.lines = []
+
+    def __getattr__(self, level):
+        return lambda message, *args: self.lines.append((level, message % args if args else message))
+
+    def levels(self, level):
+        return [m for lv, m in self.lines if lv == level]
+
+
+def fake_meme_module(key, folder=None):
+    meme = py_meme(key, [key])
+    meme.function = SimpleNamespace(__module__=f"meme_generator.memes.{folder or key}")
+    return meme
+
+
+def make_memes_dir(root, *names):
+    memes_dir = root / "pkg" / "memes"
+    for name in names:
+        (memes_dir / name / "images").mkdir(parents=True)
+    (memes_dir / "__pycache__").mkdir(exist_ok=True)
+    (memes_dir / "__init__.py").write_text("")
+    return memes_dir
+
+
+def test_scan_dirs_reports_failed_and_unregistered_folders(tmp_path):
+    memes_dir = make_memes_dir(tmp_path, "ok", "multi", "broken", "dup")
+    modules = {f"meme_generator.memes.{n}": object() for n in ("ok", "multi", "dup")}
+    memes = [fake_meme_module("ok"), fake_meme_module("m1", "multi"), fake_meme_module("m2", "multi.sub"), py_meme("extra", ["额外"])]
+    failed, empty = health.scan_dirs(memes_dir, memes, modules)
+    assert failed == ["broken"] and empty == ["dup"]
+
+
+def test_compare_official_only_checks_installed_memes_and_never_writes(tmp_path):
+    memes_dir = make_memes_dir(tmp_path, "a", "b")
+    (memes_dir / "a" / "images" / "0.png").write_bytes(b"same")
+    (memes_dir / "b" / "images" / "0.png").write_bytes(b"changed")
+    import hashlib
+    md5 = lambda b: hashlib.md5(b).hexdigest()  # noqa: E731
+    resource_list = [
+        {"path": "a/images/0.png", "hash": md5(b"same")},
+        {"path": "a/images/1.png", "hash": md5(b"x")},
+        {"path": "b/images/0.png", "hash": md5(b"official")},
+        {"path": "not_installed/images/0.png", "hash": md5(b"x")},
+        {"path": "../escape.png", "hash": "0"},
+    ]
+    before = sorted(p.relative_to(memes_dir) for p in memes_dir.rglob("*"))
+    missing, modified, checked = health.compare_official(memes_dir, resource_list)
+    assert missing == ["a/images/1.png"] and modified == ["b/images/0.png"] and checked == 3
+    assert sorted(p.relative_to(memes_dir) for p in memes_dir.rglob("*")) == before
+    assert (memes_dir / "b" / "images" / "0.png").read_bytes() == b"changed"
+
+
+def test_log_report_uses_error_for_real_problems():
+    log = RecordingLog()
+    report = health.HealthReport(
+        engine="python", version="0.1.14", loaded=10, failed_dirs=["broken"], empty_dirs=["dup"],
+        missing=["a/images/1.png"], modified=["b/images/0.png"], official_checked=3, font_checked=True, font=None,
+    )
+    health.log_report(report, log)
+    errors = log.levels("error")
+    assert len(errors) == 4 and "broken" in errors[0] and "dup" in errors[1] and "a/images/1.png" in errors[2] and "中文" in errors[3]
+    assert all(m.startswith("[多模态处理器]") for _, m in log.lines)
+    assert "b" in log.levels("info")[0] and "不会覆盖" in log.levels("info")[0]
+    assert "发现 4 类问题" in log.levels("warning")[-1]
+
+
+def test_log_report_all_good_is_one_info_line():
+    log = RecordingLog()
+    health.log_report(health.HealthReport(engine="python", version="0.1.14", loaded=5, official_checked=9, font_checked=True, font="Noto"), log)
+    assert log.levels("error") == [] and log.levels("warning") == []
+    assert log.lines == [("info", "[多模态处理器] 表情包资源检查：已加载 5 个表情（Python 版 0.1.14），核对官方素材 9 个，中文字体 Noto，没有发现问题。")]
+
+
+def test_log_report_when_resource_list_unavailable():
+    log = RecordingLog()
+    health.log_report(health.HealthReport(engine="python", loaded=5, official_error="所有镜像都不可用"), log)
+    assert "跳过素材核对" in log.levels("warning")[0]
+
+
+def health_app(make_app, tmp_path, monkeypatch, *, registry_keys=("ok",), dirs=("ok",), modules=("ok",)):
+    import mmp.processors.meme.manager as mod
+
+    app, manager, renders = list_app(make_app)
+    memes_dir = make_memes_dir(tmp_path, *dirs)
+    registry = {k: fake_meme_module(k) for k in registry_keys}
+    for name in modules:
+        monkeypatch.setitem(sys.modules, f"meme_generator.memes.{name}", SimpleNamespace())
+    loads = []
+
+    def load_meme(module):
+        loads.append(module)  # 模拟导入失败：不登记到 sys.modules
+
+    manager.package = SimpleNamespace(
+        __file__=str(memes_dir.parent / "__init__.py"), load_meme=load_meme,
+        get_memes=lambda: list(registry.values()), config=SimpleNamespace(meme=SimpleNamespace(load_builtin_memes=True)),
+    )
+    manager.memes = list(registry.values())
+    manager._rebuild_index()
+    log = RecordingLog()
+    monkeypatch.setattr(mod, "log", log)
+    monkeypatch.setattr(health, "find_cjk_font", lambda: (True, "Noto"))
+    return app, manager, memes_dir, loads, log
+
+
+def test_check_health_reports_to_console(make_app, tmp_path, monkeypatch):
+    app, manager, memes_dir, loads, log = health_app(make_app, tmp_path, monkeypatch, dirs=("ok", "broken"))
+    (memes_dir / "ok" / "images" / "0.png").write_bytes(b"x")
+
+    async def resource_list():
+        return [{"path": "ok/images/0.png", "hash": "0"}, {"path": "ok/images/9.png", "hash": "0"}]
+
+    manager._official_resource_list = resource_list
+    report = run(manager.check_health())
+    assert report.failed_dirs == ["broken"] and report.missing == ["ok/images/9.png"] and report.modified == ["ok/images/0.png"]
+    errors = log.levels("error")
+    assert any("broken" in m for m in errors) and any("ok/images/9.png" in m for m in errors)
+
+
+def test_failed_folder_is_not_reimported_until_changed(make_app, tmp_path, monkeypatch):
+    app, manager, memes_dir, loads, log = health_app(make_app, tmp_path, monkeypatch, dirs=("ok", "broken"))
+
+    async def no_list():
+        raise RuntimeError("离线")
+
+    manager._official_resource_list = no_list
+    run(manager.check_health())
+    run(manager.refresh_list(force=False))
+    assert loads == ["meme_generator.memes.broken"], "失败的目录同一次加载中只重试一次"
+    import os
+    stat = (memes_dir / "broken").stat()
+    os.utime(memes_dir / "broken", (stat.st_atime, stat.st_mtime + 10))
+    run(manager.check_health())
+    assert loads == ["meme_generator.memes.broken"] * 2, "目录有改动后重新尝试"
+    assert "跳过素材核对" in log.levels("warning")[0]
+
+
+def test_schedule_background_respects_switch(make_app, monkeypatch):
+    import mmp.processors.meme.manager as mod
+
+    monkeypatch.setattr(mod, "LIST_REFRESH_DELAY", 0)
+    for enabled, expected in ((True, 1), (False, 0)):
+        app, manager, renders = list_app(make_app)
+        manager.settings.check_resources = enabled
+        checks = []
+
+        async def check():
+            checks.append(1)
+
+        manager.check_health = check
+
+        async def scenario():
+            manager.schedule_background()
+            await asyncio.gather(*manager._list_tasks)
+
+        run(scenario())
+        assert len(checks) == expected
+
+
+def test_check_resources_defaults_on():
+    assert Settings.load({}).meme.check_resources is True
+    assert Settings.load({"image": {"meme": {"check_resources": False}}}).meme.check_resources is False
+
+
+def test_keyword_conflicts_and_unreachable_memes():
+    entries = [("good_news", ["喜报"]), ("xinxi", ["喜报", "新喜报"]), ("copy", ["喜报"]), ("play", ["玩", "Play"]), ("play2", ["play"])]
+    conflicts = health.keyword_conflicts(entries)
+    assert conflicts == [("喜报", ["good_news", "xinxi", "copy"]), ("Play", ["play", "play2"])]
+    assert health.unreachable_memes(entries) == ["copy", "play2"]
+    assert health.command_clashes(["喜报", "表情包列表", "MEME列表"], ["表情包列表", "meme列表"]) == ["MEME列表", "表情包列表"]
+
+
+def test_check_health_reports_keyword_conflicts(make_app, tmp_path, monkeypatch):
+    app, manager, memes_dir, loads, log = health_app(make_app, tmp_path, monkeypatch, registry_keys=("ok", "dup"), dirs=("ok", "dup"), modules=("ok", "dup"))
+    manager.memes[1].keywords = ["ok"]
+    manager.memes.append(fake_meme_module("cmd", "ok"))
+    manager.memes[-1].keywords = ["表情包列表"]
+    memes = list(manager.memes)
+    manager.package.get_memes = lambda: list(memes)
+    manager._rebuild_index()
+
+    async def resource_list():
+        return []
+
+    manager._official_resource_list = resource_list
+    report = run(manager.check_health())
+    assert report.keyword_conflicts == [("ok", ["ok", "dup"])] and report.unreachable == ["dup"]
+    assert report.command_clashes == ["表情包列表"]
+    errors = log.levels("error")
+    assert any("「ok」ok 生效，dup 不会被触发" in m for m in errors)
+    assert any("无法用关键词触发：dup" in m for m in errors)
+    assert any("表情包列表" in m for m in log.levels("warning"))

@@ -131,8 +131,7 @@ class MultimodalApp:
         self.tasks.start()
         if (self.settings.video.enable or self.settings.audio.enable) and not self.ffmpeg.available:
             log.warning("[多模态处理器] 未找到 FFmpeg/FFprobe，视频与音频功能不可用，图片功能不受影响")
-        await self.memes.initialize()
-        self.memes.schedule_list_refresh()  # 加载完成后在后台进行，不拖慢安装和重载
+        self.memes.start_loading()  # 导入、资源检查、列表渲染都在后台进行，不拖慢 AstrBot 启动和插件重载
 
     async def stop(self) -> None:
         await self.memes.stop()
