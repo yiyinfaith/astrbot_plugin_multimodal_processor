@@ -8,13 +8,17 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import hashlib
 import importlib
 from importlib.machinery import PathFinder, SourceFileLoader
 from io import BytesIO
+import json
+import os
 from pathlib import Path
 import re
 import sys
+import time
 from typing import Any, Callable, get_args
 
 from PIL import Image
@@ -106,6 +110,27 @@ class MemeStatus:
     reason: str = ""
 
 
+# 关键词列表图片的缓存。改了渲染参数就把版本加一，让旧图失效
+LIST_RENDER_VERSION = 1
+LIST_NAME = "meme_list"
+LIST_SUFFIXES = (".png", ".jpg", ".gif", ".webp", ".bin")
+LIST_REFRESH_DELAY = 3  # 插件加载完几秒后再开始，不拖慢安装和重载
+
+
+@dataclass(slots=True)
+class ListRefresh:
+    """一次检查 / 渲染关键词列表的结果。"""
+
+    count: int
+    previous: int | None  # 上次渲染时的表情数量；没有记录时为 None
+    changed: bool  # 表情包资源和上次渲染时不同（没有记录也算）
+    added: list[str] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
+    rendered: bool = False
+    seconds: float = 0.0
+    error: str = ""
+
+
 class MemeManager:
     def __init__(self, app: Any) -> None:
         self.app = app
@@ -116,6 +141,9 @@ class MemeManager:
         self._keywords: list[str] = []
         self._keyword_map: dict[str, Any] = {}
         self._key_map: dict[str, Any] = {}
+        self.list_dir = Path(app.data_dir) / "meme_list"
+        self._list_lock = asyncio.Lock()
+        self._list_tasks: set[asyncio.Task] = set()
 
     async def initialize(self) -> None:
         if not self.settings.enable:
@@ -199,7 +227,7 @@ class MemeManager:
         self._keywords = sorted(dict.fromkeys(keywords), key=lambda x: (-len(x), x.casefold()))
 
     def find(self, keyword: str) -> Any | None:
-        """按触发词查找，也接受 /meme搜索 返回的英文文件夹名。"""
+        """按触发词查找，也接受 /表情包搜索 返回的英文文件夹名。"""
         lowered = keyword.strip().casefold()
         return self._keyword_map.get(lowered) or self._key_map.get(lowered)
 
@@ -320,6 +348,157 @@ class MemeManager:
             render_meme_list, meme_properties=props, exclude_memes=[], sort_by=MemeSortBy.KeywordsPinyin,
             sort_reverse=False, text_template="{index}. {keywords}", add_category_icon=True,
         )
+
+    # ------------------------------------------------------------ 关键词列表缓存
+    def cached_list(self) -> Path | None:
+        """已渲染好的列表图片；没有时返回 None。"""
+        for suffix in LIST_SUFFIXES:
+            path = self.list_dir / f"{LIST_NAME}{suffix}"
+            if path.is_file() and path.stat().st_size:
+                return path
+        return None
+
+    def _read_list_meta(self) -> dict | None:
+        try:
+            meta = json.loads((self.list_dir / f"{LIST_NAME}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return meta if isinstance(meta, dict) else None
+
+    def _list_fingerprint(self) -> tuple[str, list[str]]:
+        """列表图片只取决于各表情的名称、关键词和图片/文字数量（决定分类图标），素材图片不影响。"""
+        rows = []
+        for meme in self.memes:
+            params = self._params(meme)
+            rows.append([
+                self._key(meme),
+                [str(k) for k in (getattr(self._info(meme), "keywords", None) or [])],
+                [int(getattr(params, n, 0) or 0) for n in ("min_images", "max_images", "min_texts", "max_texts")],
+            ])
+        rows.sort(key=lambda row: row[0])
+        payload = json.dumps([LIST_RENDER_VERSION, self.status.engine, self.status.version, rows], ensure_ascii=False)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest(), [row[0] for row in rows]
+
+    def _save_list(self, data: bytes, fingerprint: str, keys: list[str]) -> None:
+        """先写临时文件再替换，发送中的旧图不会读到一半；画质原样保留，不压缩。"""
+        self.list_dir.mkdir(parents=True, exist_ok=True)
+        target = self.list_dir / f"{LIST_NAME}{self.suffix(data)}"
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, target)
+        for suffix in LIST_SUFFIXES:
+            other = self.list_dir / f"{LIST_NAME}{suffix}"
+            if other != target:
+                other.unlink(missing_ok=True)
+        meta = {"fingerprint": fingerprint, "count": len(keys), "keys": keys, "file": target.name, "rendered_at": int(time.time())}
+        meta_tmp = self.list_dir / f"{LIST_NAME}.json.tmp"
+        meta_tmp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        os.replace(meta_tmp, self.list_dir / f"{LIST_NAME}.json")
+
+    def _builtin_memes_dir(self) -> Path | None:
+        try:
+            return Path(self.package.__file__).parent / "memes"
+        except Exception:
+            return None
+
+    def _rescan_python(self) -> list[Any]:
+        """Python 版只在 AstrBot 启动导入时加载表情，重载插件不会重新导入：
+        这里补加载 memes 目录里新增的文件夹，并去掉文件夹已删除的表情。已有表情的代码改动要重启 AstrBot 才生效。"""
+        package = self.package
+        memes_dir = self._builtin_memes_dir()
+        config = getattr(getattr(package, "config", None), "meme", None)
+        if memes_dir is not None and memes_dir.is_dir() and getattr(config, "load_builtin_memes", True):
+            importlib.invalidate_caches()
+            for path in sorted(memes_dir.iterdir()):
+                if path.name.startswith(("_", ".")) or not (path.is_dir() or path.suffix == ".py"):
+                    continue
+                module = f"meme_generator.memes.{path.stem if path.is_file() else path.name}"
+                if module not in sys.modules:
+                    log.info("[多模态处理器] 发现新表情：%s", path.name)
+                    package.load_meme(module)  # 导入失败由 meme-generator 自己记录日志
+
+        def alive(meme: Any) -> bool:
+            module = str(getattr(getattr(meme, "function", None), "__module__", "") or "")
+            parts = module.split(".")
+            if memes_dir is None or len(parts) < 3 or parts[:2] != ["meme_generator", "memes"]:
+                return True
+            return (memes_dir / parts[2]).is_dir() or (memes_dir / f"{parts[2]}.py").is_file()
+
+        return [meme for meme in package.get_memes() if alive(meme)]
+
+    async def _rescan(self) -> None:
+        if self.package is None or self.status.engine != "python" or not hasattr(self.package, "load_meme"):
+            return
+        try:
+            memes = await asyncio.to_thread(self._rescan_python)
+        except Exception as exc:
+            log.warning("[多模态处理器] 重新扫描表情包失败：%s", exc)
+            return
+        if memes:
+            self.memes = memes
+            self._rebuild_index()
+
+    async def refresh_list(self, *, force: bool) -> ListRefresh:
+        """检查表情包资源是否有更新，有更新（或还没有图片）时重新渲染列表；force 时总是重新渲染。"""
+        async with self._list_lock:
+            await self._rescan()
+            fingerprint, keys = self._list_fingerprint()
+            meta = self._read_list_meta()
+            old_keys = set(meta.get("keys") or []) if meta else set()
+            result = ListRefresh(
+                count=len(keys),
+                previous=int(meta.get("count") or 0) if meta else None,
+                changed=meta is None or meta.get("fingerprint") != fingerprint,
+                added=sorted(set(keys) - old_keys) if meta else [],
+                removed=sorted(old_keys - set(keys)),
+            )
+            if not force and not result.changed and self.cached_list() is not None:
+                return result
+            started = time.monotonic()
+            try:
+                data = await self.render_list()
+                await asyncio.to_thread(self._save_list, data, fingerprint, keys)
+                result.rendered = True
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                result.error = str(exc) or type(exc).__name__
+                log.warning("[多模态处理器] 表情包列表渲染失败：%s", result.error)
+            result.seconds = time.monotonic() - started
+            return result
+
+    def start_list_refresh(self, *, force: bool, delay: float = 0) -> asyncio.Task:
+        """在后台检查并渲染列表。返回的任务被取消或等待超时都不影响渲染继续进行（插件停止时除外）。"""
+
+        async def runner() -> ListRefresh:
+            if delay:
+                await asyncio.sleep(delay)
+            result = await self.refresh_list(force=force)
+            if result.rendered:
+                log.info("[多模态处理器] 表情包列表已重新渲染（%d 个表情，用时 %.1f 秒）", result.count, result.seconds)
+            return result
+
+        task = asyncio.create_task(runner())
+        self._list_tasks.add(task)
+        task.add_done_callback(self._list_task_done)
+        return task
+
+    def _list_task_done(self, task: asyncio.Task) -> None:
+        self._list_tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            log.warning("[多模态处理器] 表情包列表后台任务出错：%s", task.exception())
+
+    def schedule_list_refresh(self) -> None:
+        """安装或重载插件之后（不是加载过程中）检查资源更新，并在需要时重新渲染列表。"""
+        if self.status.available and self.settings.enable:
+            self.start_list_refresh(force=False, delay=LIST_REFRESH_DELAY)
+
+    async def stop(self) -> None:
+        tasks = list(self._list_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     @staticmethod
     def suffix(data: bytes) -> str:

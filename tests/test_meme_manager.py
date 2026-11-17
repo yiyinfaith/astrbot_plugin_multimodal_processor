@@ -1,3 +1,4 @@
+import asyncio
 from io import BytesIO
 import sys
 from types import SimpleNamespace
@@ -463,14 +464,14 @@ def test_meme_commands_follow_their_own_switch(make_app):
     app = make_app({"image": {"basic": {"enable": False}, "meme": {"enable": True}}})
     manager_with(app, py_meme("play", ["一起玩"]))
     event = FakeEvent([plain("/meme搜索 玩")], message_str="meme搜索 玩")
-    run(app.handle_command(event, "meme搜索"))
+    run(app.handle_command(event, "表情包搜索"))
     assert app.sender.texts() == ["1. 一起玩  (play)"]
 
 
 def test_meme_commands_disabled_by_meme_switch(make_app):
     app = make_app()
     event = FakeEvent([plain("/meme列表")], message_str="meme列表")
-    run(app.handle_command(event, "meme列表"))
+    run(app.handle_command(event, "表情包列表"))
     assert "关闭" in app.sender.texts()[0]
 
 
@@ -478,7 +479,7 @@ def test_search_output_is_capped(make_app):
     app = make_app({"image": {"meme": {"enable": True}}})
     manager_with(app, *[py_meme(f"k{i}", [f"词{i:03d}"]) for i in range(150)])
     event = FakeEvent([plain("/meme搜索 词")], message_str="meme搜索 词")
-    run(app.handle_command(event, "meme搜索"))
+    run(app.handle_command(event, "表情包搜索"))
     lines = app.sender.texts()[0].splitlines()
     assert len(lines) == 101 and "共 150 条" in lines[-1]
 
@@ -492,7 +493,7 @@ def test_list_is_rendered_inside_a_task_and_named_by_real_format(make_app):
         return b"\xff\xd8\xff\xe0jpeg"
 
     manager.render_list = render
-    run(app.handle_command(FakeEvent([plain("/meme列表")], message_str="meme列表"), "meme列表"))
+    run(app.handle_command(FakeEvent([plain("/meme列表")], message_str="meme列表"), "表情包列表"))
     assert app.sender.calls[0][1].suffix == ".jpg"
 
 
@@ -501,5 +502,221 @@ def test_detail_accepts_keyword_with_spaces(make_app):
     meme = py_meme("m", ["两个 词"])
     meme.generate_preview = lambda: BytesIO(b"GIF89a")
     manager_with(app, meme)
-    run(app.handle_command(FakeEvent([plain("/meme详情 两个 词")], message_str="meme详情 两个 词"), "meme详情"))
+    run(app.handle_command(FakeEvent([plain("/meme详情 两个 词")], message_str="meme详情 两个 词"), "表情包详情"))
     assert app.sender.kinds() == ["image"] and "名称：m" in app.sender.calls[0][2]
+
+
+# ------------------------------------------------------------ 关键词列表缓存
+def list_app(make_app, *memes):
+    app = make_app({"image": {"meme": {"enable": True}}})
+    manager = manager_with(app, *(memes or (py_meme("play", ["一起玩"]),)))
+    renders = []
+
+    async def render():
+        renders.append(1)
+        return png_bytes((4, 40))
+
+    manager.render_list = render
+    return app, manager, renders
+
+
+def test_new_names_and_old_meme_aliases():
+    from mmp.core.commands import get_spec, parse_command
+
+    for name, old in (("表情包列表", "meme列表"), ("表情包搜索", "meme搜索"), ("表情包详情", "meme详情"), ("刷新表情包列表", "刷新meme列表")):
+        assert get_spec(name) is not None and get_spec(old) is get_spec(name)
+        assert parse_command(f"{old} 参数").spec is get_spec(name)
+    assert get_spec("刷新表情包列表").admin
+
+
+def test_list_uses_cached_image_without_rendering(make_app):
+    app, manager, renders = list_app(make_app)
+    first = run(manager.refresh_list(force=False))
+    assert first.rendered and first.previous is None and renders == [1]
+    cached = manager.cached_list()
+    assert cached.name == "meme_list.png" and cached.read_bytes() == png_bytes((4, 40))  # 原样保存，不压缩
+
+    run(app.handle_command(FakeEvent([plain("/表情包列表")], message_str="表情包列表"), "表情包列表"))
+    assert renders == [1], "已有图片时不应现场渲染"
+    sent = app.sender.calls[0][1]
+    assert sent.suffix == ".png" and sent != cached
+
+
+def test_list_renders_on_demand_when_no_cache(make_app):
+    app, manager, renders = list_app(make_app)
+    run(app.handle_command(FakeEvent([plain("/表情包列表")], message_str="表情包列表"), "表情包列表"))
+    assert renders == [1] and app.sender.kinds() == ["image"]
+    assert manager.cached_list() is not None, "现场渲染的图片也要保存，下次直接用"
+
+
+def test_list_render_failure_is_reported(make_app):
+    app, manager, renders = list_app(make_app)
+
+    async def broken():
+        raise ProcessingError("素材缺失")
+
+    manager.render_list = broken
+    run(app.handle_command(FakeEvent([plain("/表情包列表")], message_str="表情包列表"), "表情包列表"))
+    assert "渲染失败" in app.sender.texts()[0] and "素材缺失" in app.sender.texts()[0]
+
+
+def test_background_refresh_skips_when_resources_unchanged(make_app):
+    app, manager, renders = list_app(make_app)
+    run(manager.refresh_list(force=False))
+    again = run(manager.refresh_list(force=False))
+    assert not again.changed and not again.rendered and renders == [1]
+
+    manager.memes.append(py_meme("new", ["新表情"]))
+    manager._rebuild_index()
+    updated = run(manager.refresh_list(force=False))
+    assert updated.changed and updated.rendered and updated.added == ["new"] and renders == [1, 1]
+
+
+def test_fingerprint_tracks_keywords_and_params_not_order(make_app):
+    app, manager, _ = list_app(make_app, py_meme("a", ["甲"]), py_meme("b", ["乙"]))
+    base = manager._list_fingerprint()[0]
+    manager.memes.reverse()
+    assert manager._list_fingerprint()[0] == base
+    manager.memes[0].keywords = ["改名"]
+    assert manager._list_fingerprint()[0] != base
+    manager.memes[0].keywords = ["乙"] if manager.memes[0].key == "b" else ["甲"]
+    assert manager._list_fingerprint()[0] == base
+    manager.memes[0].params_type.max_images = 2
+    assert manager._list_fingerprint()[0] != base
+
+
+def test_missing_cache_file_triggers_render_even_if_meta_matches(make_app):
+    app, manager, renders = list_app(make_app)
+    run(manager.refresh_list(force=False))
+    manager.cached_list().unlink()
+    assert run(manager.refresh_list(force=False)).rendered and renders == [1, 1]
+
+
+def test_manual_refresh_always_renders_and_reports(make_app):
+    app, manager, renders = list_app(make_app)
+    run(manager.refresh_list(force=False))
+    event = FakeEvent([plain("/刷新表情包列表")], message_str="刷新表情包列表", admin=True)
+    run(app.handle_command(event, "刷新表情包列表"))
+    text = app.sender.texts()[0]
+    assert renders == [1, 1] and "没有更新" in text and "渲染成功" in text
+
+    manager.memes = [py_meme("other", ["别的"])]
+    manager._rebuild_index()
+    run(app.handle_command(FakeEvent([plain("/刷新meme列表")], message_str="刷新meme列表", admin=True), "刷新表情包列表"))
+    text = app.sender.texts()[1]
+    assert "有更新" in text and "新增 1 个" in text and "移除 1 个" in text and "other" in text and "play" in text
+
+
+def test_manual_refresh_failure_keeps_old_image(make_app):
+    app, manager, renders = list_app(make_app)
+    run(manager.refresh_list(force=False))
+    old = manager.cached_list().read_bytes()
+
+    async def broken():
+        raise ProcessingError("字体缺失")
+
+    manager.render_list = broken
+    run(app.handle_command(FakeEvent([plain("/刷新表情包列表")], message_str="刷新表情包列表", admin=True), "刷新表情包列表"))
+    text = app.sender.texts()[0]
+    assert "渲染失败：字体缺失" in text and "仍保留之前的图片" in text
+    assert manager.cached_list().read_bytes() == old
+    assert run(manager.refresh_list(force=False)).changed is False
+
+
+def test_manual_refresh_is_admin_only(make_app):
+    app, manager, renders = list_app(make_app)
+    run(app.handle_command(FakeEvent([plain("/刷新表情包列表")], message_str="刷新表情包列表"), "刷新表情包列表"))
+    assert "管理员" in app.sender.texts()[0] and renders == []
+
+
+def test_start_schedules_refresh_after_loading(make_app, monkeypatch):
+    """start() 立即返回，渲染在之后的后台任务里进行；停止插件时取消。"""
+    import mmp.processors.meme.manager as mod
+
+    monkeypatch.setattr(mod, "LIST_REFRESH_DELAY", 0)
+    app, manager, renders = list_app(make_app)
+
+    async def scenario():
+        async def initialize():
+            pass
+
+        manager.initialize = initialize
+        await app.start()
+        assert renders == [] and manager._list_tasks, "加载过程中不渲染"
+        await asyncio.gather(*manager._list_tasks)
+        assert renders == [1] and manager.cached_list() is not None
+        await app.stop()
+
+    run(scenario())
+
+
+def test_stop_cancels_pending_refresh(make_app):
+    app, manager, renders = list_app(make_app)
+
+    async def scenario():
+        manager.schedule_list_refresh()
+        assert manager._list_tasks
+        await manager.stop()
+        assert not manager._list_tasks and renders == []
+
+    run(scenario())
+
+
+def test_rescan_loads_new_folders_and_drops_deleted(make_app, tmp_path, monkeypatch):
+    app, manager, _ = list_app(make_app)
+    memes_dir = tmp_path / "pkg" / "memes"
+    for name in ("old", "gone_later", "fresh"):
+        (memes_dir / name).mkdir(parents=True)
+    registry = {}
+
+    def make(key):
+        meme = py_meme(key, [key])
+        meme.function = SimpleNamespace(__module__=f"meme_generator.memes.{key}")
+        return meme
+
+    for key in ("old", "gone_later"):
+        registry[key] = make(key)
+        monkeypatch.setitem(sys.modules, f"meme_generator.memes.{key}", SimpleNamespace())
+    loaded = []
+
+    def load_meme(module):
+        key = module.rsplit(".", 1)[-1]
+        loaded.append(key)
+        sys.modules[module] = SimpleNamespace()
+        registry[key] = make(key)
+
+    package = SimpleNamespace(
+        __file__=str(tmp_path / "pkg" / "__init__.py"), load_meme=load_meme,
+        get_memes=lambda: list(registry.values()), config=SimpleNamespace(meme=SimpleNamespace(load_builtin_memes=True)),
+    )
+    manager.package = package
+    (memes_dir / "gone_later").rmdir()
+    try:
+        result = run(manager.refresh_list(force=False))
+    finally:
+        sys.modules.pop("meme_generator.memes.fresh", None)
+    assert loaded == ["fresh"]
+    assert sorted(manager._key(m) for m in manager.memes) == ["fresh", "old"]
+    assert manager.find("fresh") is not None and manager.find("gone_later") is None
+    assert result.count == 2
+
+
+def test_list_timeout_keeps_rendering_in_background(make_app):
+    app = make_app({"general": {"task_timeout": 1}, "image": {"meme": {"enable": True}}})
+    manager = manager_with(app, py_meme("play", ["一起玩"]))
+    if app.settings.general.task_timeout != 1:
+        app.settings.general.task_timeout = 1
+
+    async def slow():
+        await asyncio.sleep(1.5)
+        return png_bytes()
+
+    manager.render_list = slow
+
+    async def scenario():
+        await app.handle_command(FakeEvent([plain("/表情包列表")], message_str="表情包列表"), "表情包列表")
+        assert "还在渲染" in app.sender.texts()[0]
+        await asyncio.gather(*manager._list_tasks)
+        assert manager.cached_list() is not None
+
+    run(scenario())

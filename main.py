@@ -178,20 +178,26 @@ class MultimodalProcessor(Star):
         await self.app.handle_command(event, "表情包做旧")
 
     # ------------------------------------------------------------ Meme Generator
-    @filter.command("meme列表", alias={"meme帮助", "meme菜单", "表情帮助"})
+    @filter.command("表情包列表", alias={"meme列表", "meme帮助", "meme菜单", "表情帮助"})
     async def cmd_meme_help(self, event: AstrMessageEvent):
         """查看全部表情包关键词（图片列表）"""
-        await self.app.handle_command(event, "meme列表")
+        await self.app.handle_command(event, "表情包列表")
 
-    @filter.command("meme搜索")
+    @filter.command("表情包搜索", alias={"meme搜索"})
     async def cmd_meme_search(self, event: AstrMessageEvent):
-        """搜索表情包关键词，例：/meme搜索 玩"""
-        await self.app.handle_command(event, "meme搜索")
+        """搜索表情包关键词，例：/表情包搜索 玩"""
+        await self.app.handle_command(event, "表情包搜索")
 
-    @filter.command("meme详情", alias={"表情详情", "meme信息"})
+    @filter.command("表情包详情", alias={"meme详情", "表情详情", "meme信息"})
     async def cmd_meme_details(self, event: AstrMessageEvent):
-        """查看表情包参数和预览，例：/meme详情 喜报"""
-        await self.app.handle_command(event, "meme详情")
+        """查看表情包参数和预览，例：/表情包详情 喜报"""
+        await self.app.handle_command(event, "表情包详情")
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("刷新表情包列表", alias={"刷新meme列表"})
+    async def cmd_meme_refresh(self, event: AstrMessageEvent):
+        """检查表情包资源更新并重新渲染关键词列表（管理员）"""
+        await self.app.handle_command(event, "刷新表情包列表")
 
     # ------------------------------------------------------------ QQ
     @filter.command("转换")

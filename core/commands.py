@@ -131,9 +131,21 @@ COMMANDS: tuple[CommandSpec, ...] = (
         ("/表情包做旧", "/做旧 15"), "1～5 轻度，5～10 中度，10～20 重度，20 以上极限。", aliases={"做旧": ()},
     ),
     # ---------------- Meme Generator ----------------
-    CommandSpec("meme列表", "meme_help", "meme", "查看全部表情包关键词", examples=("/meme列表",), aliases={"meme帮助": (), "meme菜单": (), "表情帮助": ()}),
-    CommandSpec("meme搜索", "meme_search", "meme", "搜索表情包关键词", "<关键词片段>", examples=("/meme搜索 贴",)),
-    CommandSpec("meme详情", "meme_details", "meme", "查看表情包参数和预览", "<关键词>", examples=("/meme详情 喜报",), aliases={"表情详情": (), "meme信息": ()}),
+    CommandSpec(
+        "表情包列表", "meme_help", "meme", "查看全部表情包关键词", examples=("/表情包列表",),
+        detail="图片在安装或重载插件后预先渲染，指令发出后立即返回。",
+        aliases={"meme列表": (), "meme帮助": (), "meme菜单": (), "表情帮助": ()},
+    ),
+    CommandSpec("表情包搜索", "meme_search", "meme", "搜索表情包关键词", "<关键词片段>", examples=("/表情包搜索 贴",), aliases={"meme搜索": ()}),
+    CommandSpec(
+        "表情包详情", "meme_details", "meme", "查看表情包参数和预览", "<关键词>", examples=("/表情包详情 喜报",),
+        aliases={"meme详情": (), "表情详情": (), "meme信息": ()},
+    ),
+    CommandSpec(
+        "刷新表情包列表", "meme_refresh", "meme", "检查表情包资源是否有更新，并重新渲染关键词列表图片", examples=("/刷新表情包列表",),
+        detail="完成后回复资源是否有更新、渲染是否成功。新增或删除 memes 目录里的表情文件夹后可用它刷新；修改已有表情的代码要重启 AstrBot。",
+        aliases={"刷新meme列表": ()}, admin=True,
+    ),
     # ---------------- QQ ----------------
     CommandSpec(
         "转换", "qq_convert", "qq", "把 QQ 图片/GIF/官方表情重新发送为可下载文件", "",
